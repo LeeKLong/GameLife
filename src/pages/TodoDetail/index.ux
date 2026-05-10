@@ -1,0 +1,395 @@
+<template>
+  <div class="page-container">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+
+      <!-- Hero Section with Theme Gradient feel -->
+      <div class="hero-section">
+        <div class="hero-icon-container {{'bg-soft-'+themeColor}}">
+          <text class="hero-icon-inner {{'c-'+themeColor}}">委</text>
+        </div>
+        <text class="hero-title">{{task.title}}</text>
+        <div class="status-tags">
+          <text class="status-tag {{'bg-soft-'+themeColor}} {{'c-'+themeColor}}">{{task.importance || '普通'}}</text>
+          <text class="status-tag bg-soft-gray c-gray">{{task.frequency}}</text>
+          <text class="status-tag bg-soft-red c-red" if="{{task.completed}}">已达成</text>
+        </div>
+      </div>
+
+      <!-- Rewards Card -->
+      <div class="card-group">
+        <text class="group-title">完成奖励</text>
+        <div class="detail-card reward-card">
+          <div class="reward-row">
+            <div class="reward-box">
+              <text class="reward-val c-orange">{{task.rewardCoins}}{{task.goldMode==='random'?'±':''}}</text>
+              <text class="reward-label">金币</text>
+            </div>
+            <div class="reward-divider"></div>
+            <div class="reward-box">
+              <text class="reward-val c-green">{{task.rewardExp}}</text>
+              <text class="reward-label">经验</text>
+            </div>
+            <div class="reward-divider" if="{{task.attrType}}"></div>
+            <div class="reward-box" if="{{task.attrType}}">
+              <text class="reward-val c-blue">+{{task.attrVal}}</text>
+              <text class="reward-label">{{getAttrName(task.attrType)}}</text>
+            </div>
+          </div>
+          
+          <div class="item-reward-row" if="{{task.rewardItem && task.rewardItem !== '无'}}">
+            <text class="item-reward-label">掉落物品</text>
+            <div class="item-badge {{'bg-soft-'+themeColor}}">
+              <text class="item-badge-txt {{'c-'+themeColor}}">{{task.rewardItem}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task Details -->
+      <div class="card-group">
+        <text class="group-title">任务详情</text>
+        <div class="detail-card info-list-card">
+          <div class="info-item">
+            <text class="info-item-label">任务频率</text>
+            <text class="info-item-val">{{task.frequency}}</text>
+          </div>
+          <div class="info-divider"></div>
+          <div class="info-item">
+            <text class="info-item-label">截止日期</text>
+            <text class="info-item-val {{task.deadline==='今天' ? 'c-red' : ''}}">{{getSmartDeadline(task.deadline)}}</text>
+          </div>
+
+          <!-- Expiry Penalty Info -->
+          <block if="{{task.deadline && task.deadline !== '不限'}}">
+            <div class="info-divider"></div>
+            <div class="info-item vertical">
+              <text class="info-item-label c-red">逾期惩罚估算</text>
+              <div class="penalty-estimate-row">
+                <text class="penalty-txt">金币: -{{calcCoinPenalty()}}</text>
+                <text class="penalty-txt ml-20">经验: -{{calcExpPenalty()}}</text>
+              </div>
+              <text class="info-item-sub">{{penaltySettings.enableCustomPenalty ? '基于独立设置与系数' : '基于奖励与系数'}}</text>
+            </div>
+          </block>
+
+          <div class="info-divider" if="{{task.desc}}"></div>
+          <div class="info-item vertical" if="{{task.desc}}">
+            <text class="info-item-label">备注说明</text>
+            <text class="info-item-desc">{{task.desc}}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons (Inside Scroll) -->
+      <div class="action-section">
+        <div class="main-action-btn {{'bg-'+themeColor}}" if="{{!task.completed}}" onclick="completeTask">
+          <text class="action-btn-txt">达成委托</text>
+        </div>
+        <div class="main-action-btn bg-dark-gray" if="{{task.completed}}">
+          <text class="action-btn-txt c-gray">已完成</text>
+        </div>
+        
+        <div class="secondary-actions">
+          <div class="icon-action-btn" onclick="editTask">
+            <text class="icon-action-txt {{'c-'+themeColor}}">编辑任务</text>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-spacer"></div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+import vibrator from "@system.vibrator";
+
+export default {
+  public: {
+    taskId: null,
+    task: {},
+    themeColor: 'orange',
+    penaltySettings: {
+      enableCustomPenalty: true,
+      expPenaltyRatio: 1.0,
+      coinPenaltyRatio: 1.0
+    }
+  },
+
+  onInit() {
+    this.refreshData();
+  },
+
+  onShow() {
+    this.refreshData();
+  },
+
+  refreshData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user && user.settings) {
+      if (user.settings.themeColor) {
+        this.themeColor = user.settings.themeColor;
+      }
+      if (user.settings.penaltySettings) {
+        this.penaltySettings = user.settings.penaltySettings;
+      }
+    }
+    if (this.taskId) {
+      const list = user.todoList || [];
+      const found = list.find(t => String(t.id) === String(this.taskId));
+      if (found) {
+        this.task = found;
+      } else if (this.task && this.task.title) {
+        // Task was deleted, go back
+        router.back();
+      }
+    }
+  },
+
+  vibrate() {
+    const settings = this.$app.$def.globalData.userInfo.settings;
+    if (!settings || settings.enableHaptics !== false) vibrator.vibrate({ mode: 'short' });
+  },
+
+  getAttrName(type) {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user.baseAttrConfig && user.baseAttrConfig[type]) {
+      return user.baseAttrConfig[type].name;
+    }
+    const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+    return map[type] || type;
+  },
+
+  calcCoinPenalty() {
+    const p = this.penaltySettings;
+    const base = p.enableCustomPenalty ? (parseInt(this.task.punishment) || 0) : (parseInt(this.task.rewardCoins) || 0);
+    return Math.floor(base * (p.coinPenaltyRatio || 1.0));
+  },
+
+  calcExpPenalty() {
+    const p = this.penaltySettings;
+    const base = parseInt(this.task.rewardExp) || 0;
+    return Math.floor(base * (p.expPenaltyRatio || 1.0));
+  },
+
+  completeTask() {
+    if (this._processing) return;
+    this._processing = true;
+    this.vibrate();
+
+    // Show toast early so user sees it before router animation
+    prompt.showToast({ message: `委托达成!` });
+
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const list = user.todoList || [];
+    const task = list.find(t => String(t.id) === String(this.taskId));
+    if (!task || task.completed) { 
+      this._processing = false;
+      return; 
+    }
+
+    let finalCoins = parseInt(task.rewardCoins) || 0;
+    if (task.goldMode === 'random') finalCoins = Math.floor(finalCoins * (0.5 + Math.random()));
+
+    user.completedTaskCount = (user.completedTaskCount || 0) + 1;
+    
+    // 更新分类任务统计
+    if (task.importance === '紧急') user.urgentTaskCount = (user.urgentTaskCount || 0) + 1;
+    else if (task.importance === '重要') user.weeklyTaskCount = (user.weeklyTaskCount || 0) + 1; // 假设重要对应周/较高权重
+    else if (task.importance === '普通') user.dailyTaskCount = (user.dailyTaskCount || 0) + 1;
+    else user.normalTaskCount = (user.normalTaskCount || 0) + 1;
+
+    appDef.addCoins(finalCoins);
+
+    if (task.attrType && task.attrVal) {
+      const val = parseInt(task.attrVal);
+      if (!isNaN(val)) {
+        const baseAttrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+        if (baseAttrNames[task.attrType]) {
+            user.attributes[task.attrType] += val;
+            appDef.addGrowthLog('attribute_up', '属性提升', `${baseAttrNames[task.attrType]} +${val}`);
+        } else {
+            const customAttr = (user.customAttributes || []).find(a => a.name === task.attrType);
+            if (customAttr) {
+                customAttr.value = (customAttr.value || 0) + val;
+                appDef.addGrowthLog('attribute_up', '属性提升', `${customAttr.name} +${val}`);
+            }
+        }
+      }
+    }
+
+    appDef.gainExp(task.rewardExp);
+    appDef.checkAchievements();
+    appDef.addGrowthLog('task_complete', '完成任务', `${task.title} (Exp +${task.rewardExp}, 币 +${finalCoins})`);
+
+    if (task.rewardItem && task.rewardItem !== '无') {
+        appDef.addToInventory(task.rewardItem, 1);
+    }
+
+    // 与列表页保持一致：单次任务也只标记完成，保留到第二天才清理
+    task.completed = true;
+    task.completedDate = new Date().toDateString();
+
+    // 更新连续完成天数
+    const today = new Date().toDateString();
+    if (user.lastTaskCompletionDate !== today) {
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        if (user.lastTaskCompletionDate === yesterday) {
+            user.consecutiveTaskDays = (user.consecutiveTaskDays || 0) + 1;
+        } else {
+            user.consecutiveTaskDays = 1;
+        }
+        user.lastTaskCompletionDate = today;
+    }
+
+    appDef.saveUserData();
+    
+    // Delayed back to allow toast to be seen
+    setTimeout(() => {
+        router.back();
+    }, 800);
+  },
+
+  editTask() {
+    this.vibrate();
+    router.push({ 
+        uri: 'pages/TaskCreator', 
+        params: { taskId: this.taskId } 
+    });
+  },
+
+  getSmartDeadline(deadline) {
+    if (!deadline || deadline === '不限') {
+      return deadline;
+    }
+    
+    if (deadline === '今天' || deadline === '明天') {
+      return deadline;
+    }
+
+    // 处理纯时间格式 HH:mm
+    if (deadline.match(/^\d{1,2}:\d{2}$/)) {
+        return deadline;
+    }
+    
+    // 解析自定义时间格式：月/日 时:分
+    const match = deadline.match(/^(\d+)\/(\d+)\s+(\d+):(\d+)$/);
+    if (!match) {
+      return deadline;
+    }
+    
+    const [, month, day, hour, minute] = match;
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
+    
+    const targetMonth = parseInt(month);
+    const targetDay = parseInt(day);
+    const timeStr = `${hour}:${minute}`;
+    
+    // 判断是今天还是明天，但保留时间显示
+    if (targetMonth === currentMonth && targetDay === currentDay) {
+      return `今天 ${timeStr}`;
+    }
+    
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowMonth = tomorrow.getMonth() + 1;
+    const tomorrowDay = tomorrow.getDate();
+    
+    if (targetMonth === tomorrowMonth && targetDay === tomorrowDay) {
+      return `明天 ${timeStr}`;
+    }
+    
+    // 其他情况返回原格式
+    return deadline;
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 0 20px; }
+
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-gray { color: #8E8E93; }
+  .c-red { color: #FF453A; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
+  .bg-soft-gray { background-color: rgba(142, 142, 147, 0.15); }
+  .bg-soft-red { background-color: rgba(255, 69, 58, 0.15); }
+  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-dark-gray { background-color: #2C2C2E; }
+
+  /* Hero Section */
+  .hero-section {
+    flex-direction: column; align-items: center;
+    padding: 40px 0 30px; margin-bottom: 10px;
+  }
+  .hero-icon-container {
+    width: 80px; height: 80px; border-radius: 26px;
+    justify-content: center; align-items: center; margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .hero-icon-inner { font-size: 40px; font-weight: bold; }
+  .hero-title { font-size: 34px; color: #fff; font-weight: bold; text-align: center; margin-bottom: 16px; padding: 0 10px; }
+  .status-tags { flex-direction: row; justify-content: center; }
+  .status-tag { padding: 4px 14px; border-radius: 12px; margin: 0 6px; font-size: 20px; font-weight: bold; }
+
+  /* Card Grouping */
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; color: #8E8E93; font-weight: bold; margin-bottom: 12px; margin-left: 6px; }
+  .detail-card {
+    background-color: #1C1C1E; border-radius: 26px;
+    padding: 16px; border: 2px solid rgba(255, 255, 255, 0.05); flex-direction: column;
+  }
+
+  /* Reward Card Specifics */
+  .reward-row { flex-direction: row; justify-content: space-between; align-items: center; width: 100%; padding: 4px 0; }
+  .reward-box { flex: 1; flex-direction: column; align-items: center; }
+  .reward-val { font-size: 30px; font-weight: bold; margin-bottom: 2px; }
+  .reward-label { font-size: 16px; color: #8E8E93; font-weight: bold; }
+  .reward-divider { width: 1px; height: 32px; background-color: #2C2C2E; }
+
+  .item-reward-row { flex-direction: row; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid #2C2C2E; }
+  .item-reward-label { font-size: 22px; color: #8E8E93; }
+  .item-badge { padding: 6px 16px; border-radius: 12px; }
+  .item-badge-txt { font-size: 22px; font-weight: bold; }
+
+  /* Info List Card */
+  .info-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 12px 4px; }
+  .vertical { flex-direction: column; align-items: flex-start; }
+  .info-item-label { font-size: 22px; color: #8E8E93; font-weight: bold; }
+  .info-item-val { font-size: 22px; color: #fff; font-weight: bold; }
+  .info-item-sub { font-size: 18px; color: #444; margin-top: 4px; }
+  .info-item-desc { font-size: 22px; color: #fff; line-height: 34px; margin-top: 6px; }
+  .info-divider { height: 1px; background-color: #2C2C2E; width: 100%; }
+
+  .penalty-estimate-row { flex-direction: row; margin-top: 8px; }
+  .penalty-txt { font-size: 22px; color: #FF453A; font-weight: bold; }
+  .ml-20 { margin-left: 20px; }
+
+  /* Action Buttons */
+  .action-section { flex-direction: column; margin-top: 10px; padding-bottom: 20px; }
+  .main-action-btn { width: 100%; height: 72px; border-radius: 26px; justify-content: center; align-items: center; margin-bottom: 16px; }
+  .action-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .secondary-actions { flex-direction: row; justify-content: center; }
+  .icon-action-btn { padding: 10px 20px; }
+  .icon-action-txt { font-size: 24px; font-weight: bold; }
+
+  .footer-spacer { height: 60px; }
+</style>

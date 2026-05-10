@@ -1,0 +1,969 @@
+<import name="bottom-nav" src="../../components/BottomNav.ux"></import>
+<import name="shop-item-creator" src="./ShopItemCreator.ux"></import>
+<import name="recipe-creator" src="./RecipeCreator.ux"></import>
+
+<template>
+  <div class="main-container">
+    <div class="content-wrapper">
+      <scroll class="scroll-view" scroll-y="true" bounces="true" if="{{subTab===0}}">
+        <div class="title-row-box">
+            <text class="page-main-title {{subTab===0 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(0)">货架</text>
+            <text class="page-main-title c-gray-title divider">|</text>
+            <text class="page-main-title {{subTab===1 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(1)">仓库</text>
+            <text class="page-main-title c-gray-title divider">|</text>
+            <text class="page-main-title {{subTab===2 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(2)">合成</text>
+        </div>
+
+        <!-- 仅商店页面显示的持有金币卡片 -->
+        <div class="balance-card" onclick="goToBank">
+          <text class="balance-label" static>持有金币</text>
+          <div class="balance-row">
+             <div class="coin-icon-circle gold-bg">
+               <text class="coin-icon-txt c-gold" static>¥</text>
+             </div>
+             <text class="balance-val c-gold">{{coins}}</text>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <div class="title-filter-box" onclick="toggleCatPopup">
+            <text class="section-title">{{getDisplayTitle(0)}}</text>
+            <text class="filter-arrow {{'c-'+themeColor}}">▼</text>
+          </div>
+          <div class="header-right">
+             <div class="capsule-btn" onclick="toggleManage">
+                <text class="capsule-txt {{'c-'+themeColor}}">{{isManaging?'完成':'管理'}}</text>
+             </div>
+             <div class="capsule-btn" onclick="openCreator">
+                <text class="capsule-txt {{'c-'+themeColor}}" static>上架</text>
+             </div>
+          </div>
+        </div>
+
+        <div class="shop-list">
+          <div class="shop-item" for="{{(index, item) in displayShopItems}}" onlongpress="editItem(index)">
+            <div class="item-main" onclick="showDetail(item, 'shop')">
+              <div class="name-row">
+                <text class="item-type type-box" if="{{item.type==='gacha'}}">盲盒</text>
+                <text class="item-type type-prop" if="{{item.type==='prop'}}">道具</text>
+                <text class="item-name">{{item.name}}</text>
+              </div>
+              <text class="item-desc">{{item.desc}}</text>
+            </div>
+            <div class="sort-zone" if="{{isManaging}}">
+              <text class="sort-btn {{'c-'+themeColor}}" onclick="moveItem(index, -1)">↑</text>
+              <text class="sort-btn {{'c-'+themeColor}}" onclick="moveItem(index, 1)">↓</text>
+            </div>
+            <div class="buy-wrapper">
+              <div class="del-btn" if="{{isManaging}}" onclick="deleteItem(index)">
+                <text class="del-txt" static>×</text>
+              </div>
+              <div class="buy-btn {{'bg-soft-'+themeColor}}" if="{{!isManaging}}" onclick="buyItem(item)">
+                <text class="btn-txt {{'c-'+themeColor}}">{{item.price}}</text>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="spacer"></div>
+      </scroll>
+
+      <scroll class="scroll-view" scroll-y="true" bounces="true" if="{{subTab===1}}">
+        <div class="title-row-box">
+            <text class="page-main-title {{subTab===0 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(0)">货架</text>
+            <text class="page-main-title c-gray-title divider">|</text>
+            <text class="page-main-title {{subTab===1 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(1)">仓库</text>
+            <text class="page-main-title c-gray-title divider">|</text>
+            <text class="page-main-title {{subTab===2 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(2)">合成</text>
+        </div>
+
+        <div class="section-header">
+          <div class="title-filter-box" onclick="toggleCatPopup">
+            <text class="section-title">{{getDisplayTitle(1)}}</text>
+            <text class="filter-arrow {{'c-'+themeColor}}">▼</text>
+          </div>
+        </div>
+
+        <div class="inv-list">
+          <div class="inv-item" for="{{(index, item) in displayInventory}}">
+            <div class="item-main" onclick="showDetail(item, 'inventory')">
+              <div class="name-row">
+                <text class="item-type type-box" if="{{item.type==='gacha'}}">盲盒</text>
+                <text class="item-type type-prop" if="{{item.type==='prop' || !item.type}}">道具</text>
+                <text class="item-name">{{item.name}}</text>
+              </div>
+              <text class="item-desc">数量: {{item.count}} | {{item.desc}}</text>
+            </div>
+            <div class="use-wrapper">
+              <div class="use-btn" onclick="useItem(index)">
+                <text class="use-txt" static>使用</text>
+              </div>
+            </div>
+          </div>
+        <div class="empty-box" if="{{inventory.length === 0}}">
+          <text class="empty-txt" static>空空如也</text>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </scroll>
+
+    <scroll class="scroll-view" scroll-y="true" bounces="true" if="{{subTab===2}}">
+      <div class="title-row-box">
+          <text class="page-main-title {{subTab===0 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(0)">货架</text>
+          <text class="page-main-title c-gray-title divider">|</text>
+          <text class="page-main-title {{subTab===1 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(1)">仓库</text>
+          <text class="page-main-title c-gray-title divider">|</text>
+          <text class="page-main-title {{subTab===2 ? 'c-white' : 'c-gray-title'}}" onclick="setTab(2)">合成</text>
+      </div>
+
+      <div class="section-header">
+        <text class="section-title">合成实验室</text>
+        <div class="header-right">
+           <div class="capsule-btn" onclick="toggleRecipeManage">
+              <text class="capsule-txt {{'c-'+themeColor}}">{{isRecipeManaging?'完成':'管理'}}</text>
+           </div>
+           <div class="capsule-btn" onclick="openRecipeCreator">
+              <text class="capsule-txt {{'c-'+themeColor}}" static>新配方</text>
+           </div>
+        </div>
+      </div>
+
+      <div class="recipe-list">
+        <div class="recipe-item" for="(index, r) in recipes" tid="name">
+           <div class="recipe-main" onclick="editRecipe(index)">
+              <div class="recipe-header">
+                 <text class="recipe-name">{{r.name}}</text>
+                 <text class="recipe-type-tag {{getRecipeTypeClass(r)}}">{{getRecipeTypeLabel(r)}}</text>
+              </div>
+              <text class="recipe-target">产出: {{getRecipeTargetLabel(r)}}</text>
+              <div class="materials-row">
+                 <block for="(mIdx, m) in r.materials">
+                    <text class="material-tag">{{m.name}}x{{m.count}}</text>
+                 </block>
+              </div>
+           </div>
+           <div class="craft-btn-box" if="{{!isRecipeManaging}}" onclick="craftItem(r)">
+              <text class="craft-btn-txt {{'c-'+themeColor}}">合成</text>
+           </div>
+           <div class="del-btn" if="{{isRecipeManaging}}" onclick="deleteRecipe(index)">
+              <text class="del-txt" static>×</text>
+           </div>
+        </div>
+        <div class="empty-box" if="{{recipes.length === 0}}">
+          <text class="empty-txt" static>暂无合成配方</text>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </scroll>
+    </div>
+
+    <shop-item-creator 
+        if="{{isCreating}}"
+        editing-index="{{editingIndex}}"
+        initial-data="{{newItem}}"
+        shop-items-list="{{shopItems}}"
+        theme-color="{{themeColor}}"
+        onclose="closeCreator"
+        onsave="handleSaveItem"
+        ondelete="handleDeleteItem">
+    </shop-item-creator>
+
+    <recipe-creator
+        if="{{isRecipeCreating}}"
+        editing-index="{{editingRecipeIndex}}"
+        initial-data="{{newRecipe}}"
+        shop-items-list="{{shopItems}}"
+        theme-color="{{themeColor}}"
+        onclose="closeRecipeCreator"
+        onsave="handleSaveRecipe"
+        ondelete="handleDeleteRecipe">
+    </recipe-creator>
+
+    <bottom-nav active="Shop" if="{{!isCreating && !isRecipeCreating}}" theme-color="{{themeColor}}"></bottom-nav>
+
+    <!-- Category Popup -->
+    <div class="picker-overlay" if="{{catPopupVisible}}" onclick="toggleCatPopup">
+       <div class="picker-content cat-popup-height" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title" static>选择分类</text>
+             </div>
+
+             <div class="picker-item-box {{currentCategory==='all' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('all')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentCategory==='all' ? 'c-'+themeColor : 'c-white'}}">全部</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentCategory==='all'}}">✓</text>
+             </div>
+             
+             <div class="picker-item-box {{currentCategory==='prop' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('prop')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentCategory==='prop' ? 'c-'+themeColor : 'c-white'}}">道具</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentCategory==='prop'}}">✓</text>
+             </div>
+             
+             <div class="picker-item-box {{currentCategory==='gacha' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('gacha')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentCategory==='gacha' ? 'c-'+themeColor : 'c-white'}}">盲盒</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentCategory==='gacha'}}">✓</text>
+             </div>
+             <div style="height: 40px;"></div>
+          </scroll>
+       </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import router from "@system.router";
+import vibrator from "@system.vibrator";
+
+export default {
+  data: {
+    subTab: 0,
+    isCreating: false,
+    isRecipeCreating: false,
+    isRecipeManaging: false,
+    coins: 0,
+    inventory: [],
+    shopItems: [],
+    recipes: [],
+    isManaging: false,
+    editingIndex: -1,
+    editingRecipeIndex: -1,
+    newItem: null,
+    newRecipe: null,
+    themeColor: 'orange',
+    currentCategory: 'all',
+    displayShopItems: [],
+    displayInventory: [],
+    catPopupVisible: false,
+    currentDetailSource: 'shop'
+  },
+  
+  onInit() {
+    const appDef = this.$app.$def;
+    const globalData = appDef.globalData;
+    if (globalData && globalData.userInfo) {
+        const user = globalData.userInfo;
+        if (user.settings && user.settings.themeColor) {
+            this.themeColor = user.settings.themeColor;
+        }
+        
+        // 如果数据已经就绪，同步初始化一次，防止白屏
+        if (globalData.isDataLoaded) {
+            this.refreshData();
+        }
+    }
+  },
+
+  onShow() {
+    this.$app.$def.onDataReady(() => { 
+        this.refreshData(); 
+        
+        // Handle edit request from detail page
+        if (this.editItemName) {
+            const itemName = this.editItemName;
+            this.editItemName = null; // Clear it
+            const item = this.shopItems.find(i => i.name === itemName);
+            if (item) {
+                const realIndex = this.shopItems.indexOf(item);
+                this.editingIndex = realIndex;
+                const defaults = {
+                    type: 'prop', name: '能量水', price: 50,
+                    effectCoins: 0, effectExp: 10, effectAttr: 'none', effectAttrVal: 0, duration: 0,
+                    gachaTarget: '100金币', gachaRate: 20, rewards: []
+                };
+                this.newItem = { ...defaults, ...item };
+                this.isCreating = true;
+                this.isManaging = true; // Ensure managing mode is on for edit context
+            }
+        }
+    });
+  },
+
+  onBackPress() {
+    if (this.isCreating) { this.closeCreator(); return true; }
+    if (this.isRecipeCreating) { this.closeRecipeCreator(); return true; }
+    return false;
+  },
+
+  refreshData() {
+    const gUser = this.$app.$def.globalData.userInfo;
+    if (!gUser) return;
+    this.coins = gUser.coins || 0;
+    this.inventory = gUser.inventory || [];
+    this.shopItems = gUser.shopItems || [];
+    
+    // 增加对 recipes 数据的防御处理，确保材料列表始终是数组
+    const rawRecipes = gUser.recipes || [];
+    this.recipes = rawRecipes.map(r => ({
+       ...r,
+       materials: r.materials || []
+    }));
+    
+    if (gUser.settings && gUser.settings.themeColor) this.themeColor = gUser.settings.themeColor;
+    this.filterLists();
+  },
+
+  toggleCatPopup() {
+      this.vibrate();
+      this.catPopupVisible = !this.catPopupVisible;
+  },
+
+  selectCategory(cat) {
+      if (this.currentCategory === cat) { this.toggleCatPopup(); return; }
+      this.vibrate();
+      this.currentCategory = cat;
+      this.filterLists();
+      this.catPopupVisible = false;
+  },
+
+  getCatText(cat) {
+      if(cat === 'prop') return '道具';
+      if(cat === 'gacha') return '盲盒';
+      return '全部';
+  },
+
+  getDisplayTitle(tabIdx) {
+      if (this.currentCategory === 'all') return tabIdx === 0 ? '商品' : '我的仓库';
+      return this.getCatText(this.currentCategory);
+  },
+
+  filterLists() {
+      const cat = this.currentCategory;
+      if (cat === 'all') {
+          this.displayShopItems = this.shopItems;
+          this.displayInventory = this.inventory;
+      } else {
+          this.displayShopItems = this.shopItems.filter(i => i.type === cat);
+          this.displayInventory = this.inventory.filter(i => i.type === cat || (cat === 'prop' && !i.type));
+      }
+  },
+
+  vibrate() {
+    const settings = this.$app.$def.globalData.userInfo.settings;
+    if (!settings || settings.enableHaptics !== false) vibrator.vibrate({ mode: 'short' });
+  },
+
+  setTab(idx) { this.vibrate(); this.subTab = idx; },
+
+  goToBank() {
+    this.vibrate();
+    router.push({ uri: 'pages/Bank' });
+  },
+
+  buyItem(item) {
+    const gUser = this.$app.$def.globalData.userInfo;
+    const bankSettings = (gUser.settings && gUser.settings.bankSettings) || { maxLoanAmount: 0 };
+    const maxLoan = bankSettings.maxLoanAmount || 0;
+
+    if (this.coins + maxLoan < item.price) { 
+      prompt.showToast({ message: maxLoan > 0 ? '金币及贷款额度不足' : '金币不足' }); 
+      return; 
+    }
+    
+    this.vibrate();
+    if (this.coins < item.price) {
+      prompt.showToast({ message: '已使用贷款额度' });
+    }
+    
+    this.$app.$def.addCoins(-item.price, false);
+    this.$app.$def.addToInventory(item, 1);
+    
+    // 更新购买统计
+    gUser.shopPurchaseCount = (gUser.shopPurchaseCount || 0) + 1;
+    gUser.shopSpentCoins = (gUser.shopSpentCoins || 0) + item.price;
+    if (!gUser.purchasedItemsMap) gUser.purchasedItemsMap = {};
+    gUser.purchasedItemsMap[item.name] = (gUser.purchasedItemsMap[item.name] || 0) + 1;
+    
+    this.$app.$def.saveUserData();
+    this.$app.$def.checkAchievements();
+    this.refreshData();
+    prompt.showToast({ message: '购入成功' });
+  },
+
+  toggleManage() { 
+    this.vibrate();
+    this.isManaging = !this.isManaging;
+    const globalData = this.$app.$def.globalData;
+    if (this.isManaging && !globalData.userInfo.hasShownShopManageTip) {
+       prompt.showToast({ message: '点击商品可编辑，↑↓ 可排序' });
+       globalData.userInfo.hasShownShopManageTip = true;
+       this.$app.$def.saveUserData();
+    }
+  },
+
+  deleteItem(index) {
+    this.vibrate();
+    const itemToDelete = this.displayShopItems[index];
+    const realIndex = this.shopItems.indexOf(itemToDelete);
+    if (realIndex > -1) {
+        this.shopItems.splice(realIndex, 1);
+        this.$app.$def.globalData.userInfo.shopItems = this.shopItems;
+        this.$app.$def.saveUserData();
+        this.refreshData();
+    }
+  },
+
+  editItem(index) {
+    if (!this.isManaging) return;
+    this.vibrate();
+    const item = this.displayShopItems[index];
+    const realIndex = this.shopItems.indexOf(item);
+    this.editingIndex = realIndex;
+    const defaults = {
+        type: 'prop', name: '能量水', price: 50,
+        effectCoins: 0, effectExp: 10, effectAttr: 'none', effectAttrVal: 0, duration: 0,
+        gachaTarget: '100金币', gachaRate: 20, rewards: []
+    };
+    this.newItem = { ...defaults, ...item };
+    this.isCreating = true;
+  },
+
+  useItem(index) {
+    this.vibrate();
+    const user = this.$app.$def.globalData.userInfo;
+    let item = this.displayInventory[index];
+    const realIndex = user.inventory.indexOf(item);
+    
+    // 修复可能丢失属性的坏数据（历史遗留Bug）：尝试从商店重新获取完整定义
+    const shopDef = (user.shopItems || []).find(s => s.name === item.name);
+    if (shopDef) {
+        // 把商店里最新的配置补充进当前物品，保留 count
+        item = { ...shopDef, count: item.count };
+        user.inventory[realIndex] = item; // 更新原数组里的对象
+    }
+
+    if (item.count > 0) {
+      item.count--;
+      if (item.type === 'gacha') {
+        if (item.rewards && item.rewards.length > 0) {
+           const rand = Math.random() * 100;
+           let cumulative = 0;
+           let selected = null;
+           for (const r of item.rewards) {
+               cumulative += r.rate;
+               if (rand < cumulative) { selected = r; break; }
+           }
+           if (selected) {
+               let msg = "";
+               // 统计盲盒获得记录
+               if (selected.type === 'item' || selected.type === 'gacha') {
+                   if (!user.gachaGotItemsMap) user.gachaGotItemsMap = {};
+                   user.gachaGotItemsMap[selected.name] = (user.gachaGotItemsMap[selected.name] || 0) + (selected.count || 1);
+               }
+
+               if (selected.type === 'item') {
+                   const count = selected.count || 1;
+                   this.$app.$def.addToInventory(selected.name, count);
+                   msg = `${selected.name} x${count}`;
+               } else if (selected.type === 'gacha') {
+                   // 奖励是另一个盲盒商品
+                   const count = selected.count || 1;
+                   this.$app.$def.addToInventory(selected.name, count);
+                   msg = `${selected.name} x${count}`;
+               } else {
+                   const val = selected.val || 0;
+                   if (selected.type === 'coins') { 
+                       this.$app.$def.addCoins(val, false); 
+                       msg = `${val} 金币`; 
+                   }
+                   else if (selected.type === 'exp') { 
+                       this.$app.$def.gainExp(val, false); 
+                       msg = `${val} 经验`; 
+                   }
+                   else if (selected.type === 'all') {
+                       user.attributes.strength += val; 
+                       user.attributes.intelligence += val; 
+                       user.attributes.charm += val;
+                       this.$app.$def.addGrowthLog('attribute_up', '属性提升', `盲盒奖励: 全属性 +${val}`, false);
+                       this.$app.$def.logAttributeChange();
+                       msg = `全属性 +${val}`;
+                   } else if (['strength', 'intelligence', 'charm'].includes(selected.type)) {
+                       user.attributes[selected.type] += val;
+                       const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+                       this.$app.$def.addGrowthLog('attribute_up', '属性提升', `盲盒奖励: ${map[selected.type]} +${val}`, false);
+                       this.$app.$def.logAttributeChange();
+                       msg = `${map[selected.type]} +${val}`;
+                   }
+               }
+               prompt.showToast({ message: "中奖! 获得: " + msg });
+           } else {
+               prompt.showToast({ message: '运气不佳，再接再厉' });
+           }
+        } else {
+           const rand = Math.random() * 100;
+           if (rand < item.gachaRate) {
+               // 旧版盲盒兼容：如果有 gachaTarget，解析并应用奖励
+               if (item.gachaTarget) {
+                   const target = item.gachaTarget;
+                   if (target.includes('金币')) {
+                       const match = target.match(/(\d+)/);
+                       if (match) {
+                           const coins = parseInt(match[1]);
+                           this.$app.$def.addCoins(coins, false);
+                       }
+                   } else if (target.includes('全属性')) {
+                       const match = target.match(/(\d+)/);
+                       if (match) {
+                           const val = parseInt(match[1]);
+                           user.attributes.strength += val;
+                           user.attributes.intelligence += val;
+                           user.attributes.charm += val;
+                           this.$app.$def.addGrowthLog('attribute_up', '属性提升', `盲盒奖励: 全属性 +${val}`, false);
+                           this.$app.$def.logAttributeChange();
+                       }
+                   }
+                   prompt.showToast({ message: `中奖! 获得: ${target}` });
+               } else {
+                   prompt.showToast({ message: '中奖! 但奖励配置有误' });
+               }
+           } else {
+               prompt.showToast({ message: '空空如也...' });
+           }
+        }
+      } else {
+        let messages = [];
+        
+        if (item.effectExp) {
+          this.$app.$def.gainExp(item.effectExp, false);
+          messages.push(`经验+${item.effectExp}`);
+        }
+        
+        if (item.effectCoins) {
+          this.$app.$def.addCoins(item.effectCoins, false);
+          messages.push(`金币+${item.effectCoins}`);
+        }
+        
+        if (item.effectAttr && item.effectAttr !== 'none') {
+          const val = parseInt(item.effectAttrVal);
+          if (!isNaN(val) && val !== 0) {
+            user.attributes[item.effectAttr] = (user.attributes[item.effectAttr] || 0) + val;
+            const attrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+            messages.push(`${attrNames[item.effectAttr]}+${val}`);
+            this.$app.$def.addGrowthLog('attribute_up', '属性提升', `使用${item.name}: ${attrNames[item.effectAttr]} +${val}`, false);
+            // 记录属性变化到历史
+            this.$app.$def.logAttributeChange();
+          }
+        }
+        if (item.duration > 0) {
+          this.$app.$def.startBuff({
+            name: item.name, duration: item.duration,
+            buffType: item.name.includes('经验') ? 'doubleExp' : 'normal'
+          });
+          messages.push(`启动倒计时${item.duration}分钟`);
+        }
+        
+        const msg = messages.length > 0 ? messages.join(' ') : '已使用';
+        prompt.showToast({ message: msg });
+      }
+
+      // 统计使用次数
+      if (!user.usedItemsMap) user.usedItemsMap = {};
+      user.usedItemsMap[item.name] = (user.usedItemsMap[item.name] || 0) + 1;
+    }
+    if (item.count <= 0) user.inventory.splice(realIndex, 1);
+    
+    const unlocked = this.$app.$def.checkAchievements();
+    if (unlocked && unlocked.length > 0) {
+        unlocked.forEach(a => { prompt.showToast({ message: `解锁成就: ${a.title}` }); });
+    }
+    this.$app.$def.saveUserData();
+    this.refreshData();
+  },
+
+  openCreator() {
+    this.vibrate();
+    this.editingIndex = -1;
+    this.newItem = null;
+    this.isCreating = true;
+  },
+  
+  closeCreator() { this.vibrate(); this.isCreating = false; },
+
+  openRecipeCreator() {
+    this.vibrate();
+    this.editingRecipeIndex = -1;
+    this.newRecipe = null;
+    this.isRecipeCreating = true;
+  },
+
+  closeRecipeCreator() {
+    this.vibrate();
+    this.isRecipeCreating = false;
+  },
+
+  toggleRecipeManage() {
+    this.vibrate();
+    this.isRecipeManaging = !this.isRecipeManaging;
+  },
+
+  handleSaveRecipe(evt) {
+    this.vibrate();
+    const recipe = evt.detail.recipe;
+    const user = this.$app.$def.globalData.userInfo;
+    if (!user.recipes) user.recipes = [];
+    
+    if (this.editingRecipeIndex >= 0) {
+        user.recipes.splice(this.editingRecipeIndex, 1, recipe);
+    } else {
+        user.recipes.push(recipe);
+    }
+    
+    this.$app.$def.saveUserData();
+    this.isRecipeCreating = false;
+    this.refreshData();
+    prompt.showToast({ message: '配方已更新' });
+  },
+
+  handleDeleteRecipe(evt) {
+    const idx = evt.detail.index;
+    this.deleteRecipe(idx);
+    this.closeRecipeCreator();
+  },
+
+  deleteRecipe(index) {
+    this.vibrate();
+    const user = this.$app.$def.globalData.userInfo;
+    if (user.recipes && index > -1) {
+        user.recipes.splice(index, 1);
+        this.$app.$def.saveUserData();
+        this.refreshData();
+        prompt.showToast({ message: '配方已删除' });
+    }
+  },
+
+  editRecipe(index) {
+    if (!this.isRecipeManaging) return;
+    this.vibrate();
+    this.editingRecipeIndex = index;
+    this.newRecipe = JSON.parse(JSON.stringify(this.recipes[index]));
+    this.isRecipeCreating = true;
+  },
+
+  craftItem(recipe) {
+    this.vibrate();
+    const user = this.$app.$def.globalData.userInfo;
+    const inventory = user.inventory || [];
+    
+    // 1. 检查材料
+    for (const m of recipe.materials) {
+        const invItem = inventory.find(i => i.name === m.name);
+        if (!invItem || invItem.count < m.count) {
+            prompt.showToast({ message: `材料不足: 缺少 ${m.name}` });
+            return;
+        }
+    }
+
+    // 2. 扣除材料
+    for (const m of recipe.materials) {
+        const invItem = inventory.find(i => i.name === m.name);
+        invItem.count -= m.count;
+    }
+    // 清理数量为0的物品
+    user.inventory = inventory.filter(i => i.count > 0);
+
+    // 3. 判定逻辑
+    if (recipe.type === 'trade_up') {
+        // 汰换合约模式：权重随机
+        if (!recipe.rewards || recipe.rewards.length === 0) {
+            prompt.showToast({ message: '此配方未配置产出池' });
+            return;
+        }
+        
+        const totalWeight = recipe.rewards.reduce((sum, r) => sum + (r.weight || 0), 0);
+        const rand = Math.random() * totalWeight;
+        let cumulative = 0;
+        let selectedReward = null;
+        
+        for (const r of recipe.rewards) {
+            cumulative += (r.weight || 0);
+            if (rand < cumulative) {
+                selectedReward = r;
+                break;
+            }
+        }
+
+        if (selectedReward) {
+            const targetShopItem = this.shopItems.find(i => i.name === selectedReward.name);
+            if (targetShopItem) {
+                this.$app.$def.addToInventory(targetShopItem, 1);
+                prompt.showToast({ message: `汰换成功! 获得 ${selectedReward.name}` });
+            } else {
+                prompt.showToast({ message: '汰换成功! 但产物已下架' });
+            }
+        } else {
+            prompt.showToast({ message: '汰换失败，发生未知错误' });
+        }
+    } else {
+        // 原有模式：固定或概率合成
+        const isSuccess = Math.random() * 100 < recipe.rate;
+        if (isSuccess) {
+            const targetShopItem = this.shopItems.find(i => i.name === recipe.targetItem);
+            if (targetShopItem) {
+                this.$app.$def.addToInventory(targetShopItem, 1);
+                prompt.showToast({ message: `合成成功! 获得 ${recipe.targetItem}` });
+            } else {
+                prompt.showToast({ message: '合成成功! 但产物已下架' });
+            }
+        } else {
+            prompt.showToast({ message: '合成失败，材料已损毁' });
+        }
+    }
+
+    this.$app.$def.saveUserData();
+    this.refreshData();
+  },
+
+  handleSaveItem(evt) {
+    this.vibrate();
+    const itemToSave = evt.detail.item;
+    if (this.editingIndex >= 0) {
+        this.shopItems.splice(this.editingIndex, 1, itemToSave);
+        this.editingIndex = -1;
+        prompt.showToast({ message: '已保存修改' });
+    } else {
+        this.$app.$def.globalData.userInfo.shopItems.unshift(itemToSave);
+        prompt.showToast({ message: '已上架' });
+    }
+    this.$app.$def.saveUserData();
+    this.isCreating = false;
+    this.refreshData();
+  },
+
+  handleDeleteItem(evt) {
+    this.vibrate();
+    const idx = evt.detail.index;
+    if (idx > -1 && idx < this.shopItems.length) {
+        this.shopItems.splice(idx, 1);
+        this.$app.$def.globalData.userInfo.shopItems = this.shopItems;
+        this.$app.$def.saveUserData();
+        this.refreshData();
+        this.closeCreator();
+        prompt.showToast({ message: '已删除' });
+    }
+  },
+
+  showDetail(item, source) {
+    this.vibrate();
+    if (this.isManaging && source === 'shop') {
+      const realIndex = this.shopItems.indexOf(item);
+      this.editingIndex = realIndex;
+      const defaults = {
+        type: 'prop', name: '能量水', price: 50,
+        effectCoins: 0, effectExp: 10, effectAttr: 'none', effectAttrVal: 0, duration: 0,
+        gachaTarget: '100金币', gachaRate: 20, rewards: []
+      };
+      this.newItem = { ...defaults, ...item };
+      this.isCreating = true;
+      return;
+    }
+    router.push({ uri: 'pages/ShopItemDetail', params: { itemName: item.name, itemSource: source } });
+  },
+
+  getRecipeTypeLabel(r) {
+    if (r.type === 'trade_up') return '汰换合约';
+    return r.type === 'fixed' ? '固定' : '概率 ' + r.rate + '%';
+  },
+
+  getRecipeTypeClass(r) {
+    if (r.type === 'trade_up') return 'c-orange bg-soft-orange';
+    return r.type === 'fixed' ? 'c-blue bg-soft-blue' : 'c-purple bg-soft-purple';
+  },
+
+  getRecipeTargetLabel(r) {
+    if (r.type === 'trade_up') {
+        if (!r.rewards || r.rewards.length === 0) return '未知产物';
+        if (r.rewards.length === 1) return r.rewards[0].name;
+        return `${r.rewards[0].name} 等 ${r.rewards.length} 种可能`;
+    }
+    return r.targetItem;
+  },
+
+  moveItem(index, direction) {
+    this.vibrate();
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= this.displayShopItems.length) return;
+    const item = this.displayShopItems[index];
+    const targetItem = this.displayShopItems[targetIndex];
+    const list = this.$app.$def.globalData.userInfo.shopItems;
+    const itemIdx = list.indexOf(item);
+    const targetIdx = list.indexOf(targetItem);
+    if (itemIdx === -1 || targetIdx === -1) return;
+    const temp = list[itemIdx];
+    list[itemIdx] = list[targetIdx];
+    list[targetIdx] = temp;
+    this.$app.$def.globalData.userInfo.shopItems = list;
+    this.$app.$def.saveUserData();
+    this.refreshData();
+  },
+
+  getPropEffectText(item) {
+     let texts = [];
+     if (item.effectExp) texts.push(`经验 +${item.effectExp}`);
+     if (item.effectCoins) texts.push(`金币 +${item.effectCoins}`);
+     if (item.effectAttr && item.effectAttr !== 'none' && item.effectAttrVal !== 0) {
+        const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+        texts.push(`${map[item.effectAttr]} +${item.effectAttrVal}`);
+     }
+     if (item.duration > 0) texts.push(`持续增益 ${item.duration}分钟`);
+     if (texts.length === 0) return '无特殊效果';
+     return texts.join('\n');
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  }
+}
+</script>
+
+<style>
+  .main-container { flex-direction: column; background-color: #000; height: 100%; }
+  .content-wrapper { flex: 1; flex-direction: column; }
+  
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
+  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
+  
+  .c-gray { color: #8E8E93; }
+  .c-gray-title { color: #3A3A3C; }
+  .c-gold { color: #FFD60A; }
+  .gold-bg { background-color: rgba(255, 214, 10, 0.2); }
+
+  .title-row-box { 
+    margin-top: 10px; margin-bottom: 20px; padding-left: 4px;
+    flex-direction: row; align-items: center;
+  }
+  .page-main-title { font-size: 30px; font-weight: bold; }
+  .divider { margin: 0 16px; font-size: 28px; font-weight: normal; }
+  
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+  .spacer { height: 80px; }
+
+  .balance-card { 
+    background-color: #1C1C1E; padding: 20px; border-radius: 26px; 
+    flex-direction: row; justify-content: space-between; align-items: center; 
+    margin-bottom: 24px; border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .balance-label { color: #8E8E93; font-size: 24px; }
+  .balance-row { flex-direction: row; align-items: center; }
+  .coin-icon-circle { width: 32px; height: 32px; border-radius: 16px; justify-content: center; align-items: center; margin-right: 8px; }
+  .coin-icon-txt { font-size: 20px; font-weight: bold; }
+  .balance-val { font-size: 32px; font-weight: bold; }
+
+  .section-header { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-title { font-size: 28px; color: #fff; font-weight: bold; }
+  .header-right { flex-direction: row; align-items: center; }
+  
+  .capsule-btn {
+    padding: 6px 16px; border-radius: 20px;
+    background-color: #1C1C1E; border: 1px solid #2C2C2E;
+    margin-left: 8px; align-items: center; justify-content: center;
+  }
+  .capsule-txt { font-size: 20px; font-weight: bold; }
+
+  .title-filter-box { flex-direction: row; align-items: center; }
+  .filter-arrow { font-size: 24px; margin-left: 6px; font-weight: bold; }
+
+  /* Picker Styles */
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 70%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .cat-popup-height { height: 50%; }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .picker-cat-name { font-size: 26px; color: #fff; font-weight: bold; }
+
+  .popup-active-orange { background-color: rgba(255, 159, 10, 0.15); border-color: rgba(255, 159, 10, 0.3); }
+  .popup-active-blue { background-color: rgba(78, 129, 238, 0.15); border-color: rgba(78, 129, 238, 0.3); }
+  .popup-active-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
+  .popup-active-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
+  .check-icon { font-size: 26px; font-weight: bold; }
+  .c-white { color: #fff; }
+
+  .shop-list, .inv-list { flex-direction: column; }
+  .shop-item, .inv-item { 
+    flex-direction: row; background-color: #1C1C1E; border-radius: 26px; 
+    padding: 16px; margin-bottom: 12px; align-items: center; border: 2px solid rgba(255, 255, 255, 0.05); 
+  }
+  .item-main { flex: 1; flex-direction: column; }
+  .name-row { flex-direction: row; align-items: center; margin-bottom: 6px; width: 100%; }
+  
+  .item-type { font-size: 16px; margin-right: 6px; font-weight: bold; padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
+  .type-box { color: #BF5AF2; background-color: rgba(191, 90, 242, 0.15); }
+  .type-prop { color: #4E81EE; background-color: rgba(78, 129, 238, 0.15); }
+  
+  .item-name { font-size: 26px; color: #fff; font-weight: bold; flex: 1; lines: 1; text-overflow: ellipsis; }
+  .item-desc { font-size: 20px; color: #8E8E93; lines: 1; text-overflow: ellipsis; width: 100%; }
+  
+  .buy-wrapper { flex-shrink: 0; padding-left: 10px; justify-content: flex-end; align-items: center; }
+  .use-wrapper { flex-shrink: 0; padding-left: 10px; justify-content: flex-end; align-items: center; }
+  .craft-btn-box { flex-shrink: 0; padding: 8px 16px; border-radius: 16px; background-color: #2C2C2E; }
+  .craft-btn-txt { font-size: 22px; font-weight: bold; }
+  .buy-btn { padding: 8px 16px; border-radius: 16px; }
+  .use-btn { background-color: #2C2C2E; padding: 8px 16px; border-radius: 16px; }
+  .btn-txt { font-size: 22px; font-weight: bold; }
+  .use-txt { font-size: 22px; color: #fff; font-weight: bold; }
+  
+  .sort-zone { flex-direction: column; align-items: center; justify-content: center; width: 28px; margin-right: 4px; }
+  .sort-btn { font-size: 22px; font-weight: bold; padding: 4px 0; text-align: center; }
+
+  .del-btn { width: 44px; height: 44px; justify-content: center; align-items: center; }
+  .del-txt { font-size: 32px; color: #FF453A; font-weight: bold; }
+
+  .recipe-list { flex-direction: column; }
+  .recipe-item {
+    flex-direction: row; background-color: #1C1C1E; border-radius: 26px; 
+    padding: 16px; margin-bottom: 12px; align-items: center; border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .recipe-main { flex: 1; flex-direction: column; }
+  .recipe-header { flex-direction: row; align-items: center; margin-bottom: 6px; }
+  .recipe-name { font-size: 26px; color: #fff; font-weight: bold; margin-right: 10px; }
+  .recipe-type-tag { font-size: 16px; padding: 2px 8px; border-radius: 6px; font-weight: bold; }
+  .recipe-target { font-size: 20px; color: #8E8E93; margin-bottom: 8px; }
+  .materials-row { flex-direction: row; flex-wrap: wrap; }
+  .material-tag { font-size: 14px; color: #8E8E93; background-color: #2C2C2E; padding: 2px 6px; border-radius: 4px; margin-right: 6px; margin-bottom: 4px; }
+  
+  .empty-box { margin-top: 60px; align-items: center; }
+  .empty-txt { color: #48484A; font-size: 24px; }
+
+</style>

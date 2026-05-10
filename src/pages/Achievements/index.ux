@@ -1,0 +1,784 @@
+<import name="achievement-creator" src="./AchievementCreator.ux"></import>
+
+<template>
+  <div class="page-container">
+    <div class="content-wrapper">
+      <scroll class="scroll-view" scroll-y="true" bounces="true">
+        <div class="scroll-content">
+            <!-- Large Title -->
+            <div class="title-row-box">
+                <text class="page-main-title">成就馆</text>
+            </div>
+
+            <!-- Category Tabs -->
+            <div class="category-tabs">
+               <div class="cat-tab {{currentCategory === 'system' ? 'cat-active' : ''}}" onclick="switchCategory('system')">
+                  <text class="cat-txt {{currentCategory === 'system' ? 'c-white' : 'c-gray'}}">系统成就</text>
+                  <div class="cat-line {{'bg-'+themeColor}}" if="{{currentCategory === 'system'}}"></div>
+               </div>
+               <div class="cat-tab {{currentCategory === 'custom' ? 'cat-active' : ''}}" onclick="switchCategory('custom')">
+                  <text class="cat-txt {{currentCategory === 'custom' ? 'c-white' : 'c-gray'}}">自定义成就</text>
+                  <div class="cat-line {{'bg-'+themeColor}}" if="{{currentCategory === 'custom'}}"></div>
+               </div>
+            </div>
+
+            <!-- Status Tabs -->
+            <div class="tabs-row">
+               <div class="tab-item {{currentTab === 'unlocked' ? 'tab-active-'+themeColor : 'tab-inactive'}}" onclick="switchTab('unlocked')">
+                  <text class="tab-txt {{currentTab === 'unlocked' ? (themeColor === 'orange' ? 'c-orange' : themeColor === 'blue' ? 'c-blue' : themeColor === 'green' ? 'c-green' : 'c-purple') : 'c-gray'}}">已达成</text>
+               </div>
+               <div class="tab-item {{currentTab === 'locked' ? 'tab-active-'+themeColor : 'tab-inactive'}}" onclick="switchTab('locked')">
+                  <text class="tab-txt {{currentTab === 'locked' ? (themeColor === 'orange' ? 'c-orange' : themeColor === 'blue' ? 'c-blue' : themeColor === 'green' ? 'c-green' : 'c-purple') : 'c-gray'}}">未达成</text>
+               </div>
+               <!-- Create Button (Custom Category Only) -->
+               <div class="tab-item create-tab {{'bg-soft-'+themeColor}} {{'border-soft-'+themeColor}}" if="{{currentCategory === 'custom'}}" onclick="openCreator">
+                  <text class="tab-txt {{themeColor === 'orange' ? 'c-orange' : themeColor === 'blue' ? 'c-blue' : themeColor === 'green' ? 'c-green' : 'c-purple'}}">+</text>
+               </div>
+            </div>
+
+            <div class="achieve-item {{item.unlocked ? 'bg-soft-'+themeColor : 'item-dark'}} {{item.unlocked ? 'border-soft-'+themeColor : 'border-dark'}}" for="{{(index, item) in displayList}}" tid="id" onclick="handleItemClick(item)" onlongpress="handleItemLongPress(item)">
+              <div class="icon-box {{item.unlocked ? 'bg-'+themeColor : 'icon-box-dark'}}">
+                 <block if="{{item.type === 'custom'}}">
+                    <image class="achieve-img {{item.unlocked ? '' : 'img-locked'}}" src="{{getCustomIcon(item)}}"></image>
+                 </block>
+                 <block else>
+                    <text class="achieve-icon-txt {{item.unlocked ? 'c-white' : 'c-gray'}}">{{getIconText(item)}}</text>
+                 </block>
+              </div>
+              <div class="info-box">
+                <div class="title-row">
+                    <text class="achieve-title {{!item.unlocked ? 'c-gray' : 'c-white'}}">{{item.title}}</text>
+                    <text class="new-tag" if="{{item.isNew}}">NEW</text>
+                </div>
+                <text class="achieve-desc {{!item.unlocked ? 'c-gray-dark' : 'c-soft-'+themeColor}}">{{item.desc}}</text>
+                
+                <div class="progress-bar" if="{{!item.unlocked}}">
+                   <div class="progress-fill" style="width: {{item.progress}}%;"></div>
+                </div>
+              </div>
+              <!-- Status Box -->
+              <div class="status-box">
+                <!-- Achievement Status Logic -->
+                <block if="{{item.unlocked}}">
+                    <text class="status-txt {{'c-'+themeColor}}">已达成</text>
+                </block>
+                <block else>
+                    <!-- Ready to claim state -->
+                    <div class="claim-btn {{'bg-'+themeColor}}" if="{{item.progress >= 100}}" onclick="handleClaim(item)">
+                        <text class="claim-txt c-white">领取</text>
+                    </div>
+                    
+                    <!-- Progress state -->
+                    <block if="{{item.progress < 100}}">
+                        <div class="custom-actions" if="{{item.type === 'custom' && item.raw && item.raw.condition === 'none'}}">
+                            <div class="action-btn add-progress" onclick="handleAddProgress(item)">
+                                <text class="action-txt c-white">+</text>
+                            </div>
+                        </div>
+                        <text class="status-txt c-gray" if="{{!(item.type === 'custom' && item.raw && item.raw.condition === 'none')}}">{{item.progress}}%</text>
+                    </block>
+                </block>
+              </div>
+            </div>
+            
+            <div class="empty-tip" if="{{displayList.length === 0}}">
+               <text class="empty-txt">{{currentCategory === 'custom' ? '暂无自定义成就' : '暂无成就'}}</text>
+            </div>
+            
+            <div class="spacer"></div>
+        </div>
+      </scroll>
+    </div>
+
+    <!-- Creator Popup -->
+    <achievement-creator 
+      if="{{showCreator}}" 
+      theme-color="{{themeColor}}"
+      editing-id="{{editingId}}"
+      initial-data="{{editingData}}"
+      onsave="handleCreatorSave"
+      ondelete="handleCreatorDelete"
+      onclose="closeCreator"
+    ></achievement-creator>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+import prompt from "@system.prompt";
+
+export default {
+  data: {
+    unlockedCount: 0,
+    totalCount: 0,
+    unlockPercent: 0,
+    displayList: [],
+    currentTab: 'unlocked', // unlocked, locked
+    currentCategory: 'system', // system, custom
+    showCreator: false,
+    editingId: null,
+    editingData: null,
+    themeColor: 'orange'
+  },
+  
+  computed: {
+    unlockedTabBg() {
+      return this.currentTab === 'unlocked' ? `bg-soft-${this.themeColor}` : 'bg-dark';
+    },
+    unlockedTabBorder() {
+      return this.currentTab === 'unlocked' ? `border-soft-${this.themeColor}` : 'border-dark';
+    },
+    unlockedTabTextColor() {
+      return this.currentTab === 'unlocked' ? `c-${this.themeColor}` : 'c-gray';
+    },
+    lockedTabBg() {
+      return this.currentTab === 'locked' ? `bg-soft-${this.themeColor}` : 'bg-dark';
+    },
+    lockedTabBorder() {
+      return this.currentTab === 'locked' ? `border-soft-${this.themeColor}` : 'border-dark';
+    },
+    lockedTabTextColor() {
+      return this.currentTab === 'locked' ? `c-${this.themeColor}` : 'c-gray';
+    }
+  },
+  
+  onInit() {
+    // Read theme from global
+    const appDef = this.$app.$def;
+    const globalData = appDef.globalData;
+    if (globalData && globalData.userInfo) {
+        const user = globalData.userInfo;
+        if (user.settings && user.settings.themeColor) {
+            this.themeColor = user.settings.themeColor;
+        }
+
+        // 如果数据已加载，同步初始化一次数据
+        if (globalData.isDataLoaded) {
+            this.refreshData();
+        }
+    }
+  },
+  
+  onShow() {
+      // Ensure data is loaded before refreshing
+      this.$app.$def.onDataReady(() => {
+          // Check for any pending achievements first
+          this.$app.$def.checkAchievements();
+          this.refreshData();
+      });
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+  
+  switchTab(tab) {
+      if (this.currentTab === tab) return;
+      this.vibrate();
+      this.currentTab = tab;
+      this.refreshData();
+  },
+
+  switchCategory(cat) {
+      if (this.currentCategory === cat) return;
+      this.vibrate();
+      this.currentCategory = cat;
+      this.refreshData();
+  },
+
+  openCreator() {
+      this.vibrate();
+      this.editingId = null;
+      this.editingData = null;
+      this.showCreator = true;
+  },
+
+  closeCreator() {
+      this.showCreator = false;
+  },
+
+  handleCreatorSave(e) {
+      const task = e.detail.task;
+      const appDef = this.$app.$def;
+      const user = appDef.globalData.userInfo;
+      
+      if (!user.customAchievements) user.customAchievements = [];
+      
+      if (this.editingId) {
+          const idx = user.customAchievements.findIndex(a => a.id === this.editingId);
+          if (idx !== -1) {
+              user.customAchievements[idx] = { ...user.customAchievements[idx], ...task };
+          }
+      } else {
+          user.customAchievements.push({
+              ...task,
+              type: 'custom',
+              currentProgress: 0,
+              isCompleted: false,
+              createTime: Date.now()
+          });
+      }
+      
+      appDef.saveUserData();
+      this.showCreator = false;
+      
+      // Auto switch to custom tab if not there
+      if (this.currentCategory !== 'custom') {
+          this.currentCategory = 'custom';
+          this.currentTab = 'locked';
+      }
+      
+      this.refreshData();
+      prompt.showToast({ message: '保存成功' });
+  },
+
+  handleCreatorDelete(e) {
+      const id = e.detail.id;
+      const appDef = this.$app.$def;
+      const user = appDef.globalData.userInfo;
+      
+      if (user.customAchievements) {
+          const idx = user.customAchievements.findIndex(a => a.id === id);
+          if (idx !== -1) {
+              user.customAchievements.splice(idx, 1);
+              appDef.saveUserData();
+              this.showCreator = false;
+              this.refreshData();
+              prompt.showToast({ message: '已删除成就' });
+          }
+      }
+  },
+
+  getIconText(item) {
+    // System achievements: show first character of title as icon to avoid emoji squares
+    if (item.title) {
+      // Handle potential surrogate pairs (like some special characters) correctly
+      return Array.from(item.title)[0];
+    }
+    return '成';
+  },
+
+  getCustomIcon(item) {
+    // Use fixed icon based on ID to avoid flickering
+    const icons = [
+        '/common/icons/award-line.png',
+        '/common/icons/medal-line.png',
+        '/common/icons/medal-2-line.png'
+    ];
+    // Hash ID to pick an icon
+    const idStr = String(item.id || '0');
+    let hash = 0;
+    for (let i = 0; i < idStr.length; i++) {
+        hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
+        hash |= 0;
+    }
+    const idx = Math.abs(hash) % icons.length;
+    return icons[idx];
+  },
+  
+  handleItemClick(item) {
+      if (item.unlocked) {
+          this.vibrate();
+          prompt.showToast({ message: `已达成: ${item.title}` });
+      }
+  },
+
+  handleItemLongPress(item) {
+      if (item.type === 'custom') {
+          // Edit custom achievement
+          this.vibrate();
+          const appDef = this.$app.$def;
+          const user = appDef.globalData.userInfo;
+          const customAch = user.customAchievements.find(a => a.id === item.id);
+          if (customAch) {
+              this.editingId = item.id;
+              this.editingData = {
+                  title: customAch.title,
+                  desc: customAch.desc,
+                  target: customAch.target,
+                  condition: customAch.condition || 'task_count',
+                  rewardCoins: customAch.rewardCoins,
+                  rewardExp: customAch.rewardExp,
+                  linkedTaskId: customAch.linkedTaskId,
+                  linkedAttr: customAch.linkedAttr,
+                  linkedItemId: customAch.linkedItemId
+              };
+              this.showCreator = true;
+          }
+      }
+  },
+
+  handleAddProgress(item) {
+      this.addCustomProgress(item);
+  },
+
+  handleClaim(item) {
+      this.vibrate();
+      const appDef = this.$app.$def;
+      const user = appDef.globalData.userInfo;
+      const enableRewards = user.settings ? user.settings.enableAchievementRewards !== false : true;
+
+      if (item.type === 'custom') {
+          const customAch = user.customAchievements.find(a => a.id === item.id);
+          if (customAch && !customAch.isCompleted) {
+              customAch.isCompleted = true;
+              customAch.currentProgress = customAch.target;
+              
+              let msg = `达成成就: ${customAch.title}`;
+              if (enableRewards) {
+                  if (customAch.rewardCoins > 0) {
+                      appDef.addCoins(customAch.rewardCoins, false);
+                      msg += `\n金币 +${customAch.rewardCoins}`;
+                  }
+                  if (customAch.rewardExp > 0) {
+                      appDef.gainExp(customAch.rewardExp, false);
+                      msg += `\n经验 +${customAch.rewardExp}`;
+                  }
+              } else {
+                  msg += '\n(奖励已在设置中关闭)';
+              }
+              
+              appDef.addGrowthLog('achievement', '自定义成就达成', customAch.title, false);
+              appDef.saveUserData();
+              this.refreshData();
+              prompt.showToast({ message: msg });
+          }
+      } else {
+          // System achievement
+          if (!user.unlockedAchievements.includes(item.id)) {
+              user.unlockedAchievements.push(item.id);
+              appDef.addGrowthLog('achievement', '解锁成就', item.title, false);
+              appDef.saveUserData();
+              this.refreshData();
+              prompt.showToast({ message: `解锁成就: ${item.title}` });
+          }
+      }
+  },
+
+  addCustomProgress(item) {
+      // Prevent row click
+      this.vibrate();
+      const appDef = this.$app.$def;
+      const user = appDef.globalData.userInfo;
+      const customAch = user.customAchievements.find(a => a.id === item.id);
+      
+      if (customAch) {
+          customAch.currentProgress = (customAch.currentProgress || 0) + 1;
+          if (customAch.currentProgress >= customAch.target) {
+              this.completeCustom(item);
+          } else {
+              appDef.saveUserData();
+              this.refreshData();
+              prompt.showToast({ message: `进度 +1 (${customAch.currentProgress}/${customAch.target})` });
+          }
+      }
+  },
+
+  refreshData() {
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const allDefs = appDef.globalData.achievements || [];
+    const unlockedIds = user.unlockedAchievements || [];
+    
+    if (this.currentCategory === 'system') {
+        // System Stats
+        const currentStats = {
+            level: user.level,
+            coins: user.totalCoins || user.coins, 
+            task: user.completedTaskCount || 0,
+            signin: user.totalSignInDays || 0,
+            strength: user.attributes.strength,
+            intelligence: user.attributes.intelligence,
+            charm: user.attributes.charm
+        };
+
+        this.totalCount = allDefs.length;
+        this.unlockedCount = allDefs.filter(a => unlockedIds.includes(a.id)).length;
+        this.unlockPercent = Math.floor((this.unlockedCount / this.totalCount) * 100) || 0;
+
+        let targetList = [];
+        if (this.currentTab === 'unlocked') {
+            targetList = allDefs.filter(a => unlockedIds.includes(a.id));
+        } else {
+            const lockedDefs = allDefs.filter(a => !unlockedIds.includes(a.id));
+            const typeGroups = {};
+            lockedDefs.forEach(a => {
+                if (!typeGroups[a.type]) {
+                    typeGroups[a.type] = a;
+                } else {
+                    if (a.target < typeGroups[a.type].target) {
+                        typeGroups[a.type] = a;
+                    }
+                }
+            });
+            targetList = Object.values(typeGroups);
+        }
+
+        this.displayList = targetList.map(active => {
+            const isUnlocked = unlockedIds.includes(active.id);
+            let current = 0;
+            if (active.type === 'level') current = currentStats.level;
+            else if (active.type === 'coins') current = currentStats.coins;
+            else if (active.type === 'task') current = currentStats.task;
+            else if (active.type === 'signin') current = currentStats.signin;
+            else if (active.type === 'strength') current = currentStats.strength;
+            else if (active.type === 'intelligence') current = currentStats.intelligence;
+            else if (active.type === 'charm') current = currentStats.charm;
+            
+            let progress = Math.floor((current / active.target) * 100);
+            if (progress > 100) progress = 100;
+            if (isUnlocked) progress = 100;
+            
+            return { 
+                id: active.id,
+                title: active.title,
+                desc: active.desc,
+                type: active.type,
+                progress, 
+                unlocked: isUnlocked
+            };
+        });
+    } else {
+        // Custom Achievements
+        const customDefs = user.customAchievements || [];
+        let targetList = [];
+        
+        if (this.currentTab === 'unlocked') {
+            targetList = customDefs.filter(a => a.isCompleted);
+        } else {
+            targetList = customDefs.filter(a => !a.isCompleted);
+        }
+        
+        // Current System Stats for condition checking
+        const todoList = user.todoList || [];
+        const currentStats = {
+            task: user.completedTaskCount || 0,
+            strength: user.attributes.strength || 0,
+            intelligence: user.attributes.intelligence || 0,
+            charm: user.attributes.charm || 0,
+            tomatoCount: user.tomatoCount || 0,
+            consecutiveDays: user.consecutiveTaskDays || 0,
+            useDays: user.firstUseDate ? (Math.floor((Date.now() - user.firstUseDate) / (1000 * 60 * 60 * 24)) + 1) : 1,
+            shopBuy: user.shopPurchaseCount || 0,
+            bankBalance: user.coins || 0
+        };
+
+        this.displayList = targetList.map(active => {
+            // Determine current progress based on condition
+            let currentProg = active.currentProgress || 0;
+            if (!active.isCompleted && active.condition) {
+                if (active.condition === 'task_count') {
+                    if (active.linkedTaskId) {
+                        const t = todoList.find(i => i.id === active.linkedTaskId);
+                        if (t) currentProg = (t.taskType === 'count') ? (t.currentCount || 0) : (t.completed ? 1 : 0);
+                    } else {
+                        currentProg = currentStats.task;
+                    }
+                }
+                else if (active.condition === 'consecutive_task_days') {
+                    if (active.linkedTaskId) {
+                        const t = todoList.find(i => i.id === active.linkedTaskId);
+                        currentProg = t ? (t.combo || 0) : 0;
+                    } else {
+                        currentProg = currentStats.consecutiveDays;
+                    }
+                }
+                else if (active.condition === 'attr_reached') {
+                    const attrName = active.linkedAttr || 'strength';
+                    if (user.attributes[attrName] !== undefined) {
+                        currentProg = user.attributes[attrName];
+                    } else {
+                        const customAttr = (user.customAttributes || []).find(a => a.name === attrName);
+                        currentProg = customAttr ? (customAttr.value || 0) : 0;
+                    }
+                }
+                else if (active.condition === 'tomato_count') currentProg = currentStats.tomatoCount;
+                else if (active.condition === 'use_days') currentProg = currentStats.useDays;
+                else if (active.condition === 'shop_buy_count') {
+                    if (active.linkedItemId) {
+                        currentProg = (user.purchasedItemsMap && user.purchasedItemsMap[active.linkedItemId]) || 0;
+                    } else {
+                        currentProg = currentStats.shopBuy;
+                    }
+                }
+                else if (active.condition === 'item_use_count') {
+                    if (active.linkedItemId) {
+                        currentProg = (user.usedItemsMap && user.usedItemsMap[active.linkedItemId]) || 0;
+                    } else {
+                        // 累计所有物品使用次数
+                        currentProg = 0;
+                        if (user.usedItemsMap) {
+                            Object.values(user.usedItemsMap).forEach(v => { currentProg += v; });
+                        }
+                    }
+                }
+                else if (active.condition === 'gacha_count') {
+                    if (active.linkedItemId) {
+                        currentProg = (user.gachaGotItemsMap && user.gachaGotItemsMap[active.linkedItemId]) || 0;
+                    } else {
+                        currentProg = 0;
+                        if (user.gachaGotItemsMap) {
+                            Object.values(user.gachaGotItemsMap).forEach(v => { currentProg += v; });
+                        }
+                    }
+                }
+                else if (active.condition === 'focus_duration') {
+                    if (active.linkedTaskId) {
+                        currentProg = (user.taskFocusMinutesMap && user.taskFocusMinutesMap[active.linkedTaskId]) || 0;
+                    } else {
+                        currentProg = 0;
+                        if (user.taskFocusMinutesMap) {
+                            Object.values(user.taskFocusMinutesMap).forEach(v => { currentProg += v; });
+                        }
+                    }
+                }
+                else if (active.condition === 'bank_balance') currentProg = currentStats.bankBalance;
+                
+                if (currentProg >= active.target) {
+                    currentProg = active.target;
+                }
+            }
+
+            let progress = Math.floor((currentProg / active.target) * 100);
+            if (progress > 100) progress = 100;
+            if (active.isCompleted) {
+                progress = 100;
+                currentProg = active.target;
+            }
+            
+            let descStr = active.desc || '';
+            if (!active.isCompleted) {
+                descStr = `进度: ${currentProg}/${active.target} ${descStr ? ' | ' + descStr : ''}`;
+            }
+            
+            return {
+                id: active.id,
+                title: active.title,
+                desc: descStr,
+                type: 'custom',
+                progress,
+                unlocked: !!active.isCompleted,
+                raw: active
+            };
+        });
+
+    }
+    
+    // Final Sort: Unlocked items usually don't need sort (or sort by time if we had it)
+    // Locked items: Sort by progress (highest first) to encourage user
+    if (this.currentTab === 'locked') {
+        this.displayList.sort((a, b) => b.progress - a.progress);
+    }
+  }
+}
+</script>
+
+<style>
+  .page-container { 
+    flex-direction: column; 
+    background-color: #000; 
+    width: 100%; height: 100%; 
+  }
+  
+  /* Theme Colors */
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-dark { background-color: #1C1C1E; }
+
+  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.1); }
+  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.1); }
+  .bg-soft-green { background-color: rgba(163, 250, 0, 0.1); }
+  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.1); }
+
+  .c-soft-orange { color: rgba(255, 159, 10, 0.8); }
+  .c-soft-blue { color: rgba(78, 129, 238, 0.8); }
+  .c-soft-green { color: rgba(163, 250, 0, 0.8); }
+  .c-soft-purple { color: rgba(191, 90, 242, 0.8); }
+  
+  .c-gray { color: #8E8E93; }
+  .c-gray-dark { color: #636366; }
+  .c-white { color: #fff; }
+
+  .border-soft-orange { border-color: rgba(255, 159, 10, 0.3); }
+  .border-soft-blue { border-color: rgba(78, 129, 238, 0.3); }
+  .border-soft-green { border-color: rgba(163, 250, 0, 0.3); }
+  .border-soft-purple { border-color: rgba(191, 90, 242, 0.3); }
+  
+  .border-dark { border-color: #2C2C2E; }
+
+  .title-row-box { 
+    margin-top: 20px; margin-bottom: 24px; 
+    padding-left: 4px;
+    flex-direction: row;
+    align-items: center;
+  }
+  .page-main-title { font-size: 40px; font-weight: bold; color: #fff; }
+
+  /* Category Tabs */
+  .category-tabs {
+      flex-direction: row;
+      margin-bottom: 20px;
+  }
+  .cat-tab {
+      padding: 10px 20px;
+      flex-direction: column;
+      align-items: center;
+      margin-right: 20px;
+  }
+  .cat-txt { font-size: 24px; font-weight: bold; margin-bottom: 6px; }
+  .cat-line { width: 40px; height: 4px; border-radius: 2px; }
+
+  /* Stats Header (Compact) */
+  .stats-header {
+      margin-bottom: 16px;
+  }
+  .stats-bar-box {
+      flex-direction: column;
+      width: 100%;
+  }
+  .stats-text-row {
+      flex-direction: row;
+      justify-content: space-between;
+      margin-bottom: 6px;
+  }
+  .stats-label { font-size: 22px; color: #8E8E93; font-weight: bold; }
+  .stats-val { font-size: 22px; font-weight: bold; }
+  
+  .stats-track {
+      height: 6px;
+      background-color: #2C2C2E;
+      border-radius: 3px;
+      width: 100%;
+  }
+  .stats-fill { height: 100%; border-radius: 3px; }
+
+  /* Tabs */
+  .tabs-row {
+      flex-direction: row;
+      margin-bottom: 16px;
+  }
+  .tab-item {
+      padding: 6px 16px;
+      border-radius: 20px;
+      margin-right: 12px;
+      border: 1px solid #2C2C2E;
+  }
+  .tab-inactive {
+      background-color: #1C1C1E;
+      border-color: #2C2C2E;
+  }
+  .tab-active-orange {
+      background-color: rgba(255, 159, 10, 0.15);
+      border-color: rgba(255, 159, 10, 0.3);
+  }
+  .tab-active-blue {
+      background-color: rgba(78, 129, 238, 0.15);
+      border-color: rgba(78, 129, 238, 0.3);
+  }
+  .tab-active-green {
+      background-color: rgba(163, 250, 0, 0.15);
+      border-color: rgba(163, 250, 0, 0.3);
+  }
+  .tab-active-purple {
+      background-color: rgba(191, 90, 242, 0.15);
+      border-color: rgba(191, 90, 242, 0.3);
+  }
+  .tab-txt { font-size: 20px; font-weight: bold; }
+
+  .content-wrapper { flex: 1; flex-direction: column; }
+  .scroll-view { flex: 1; flex-direction: column; }
+  .scroll-content { flex-direction: column; padding: 0 16px; padding-bottom: 40px; }
+  
+  .achieve-item { 
+    flex-direction: row; 
+    border-radius: 26px; 
+    padding: 16px; 
+    margin-bottom: 12px;
+    align-items: center; 
+    border: 2px solid;
+    min-height: 80px;
+  }
+  .item-dark { background-color: #1C1C1E; }
+  
+  .icon-box { 
+    width: 50px; height: 50px;
+    justify-content: center; align-items: center; margin-right: 12px; 
+    border-radius: 25px;
+  }
+  .icon-box-dark { background-color: #2C2C2E; }
+  
+  .achieve-icon-txt { font-size: 24px; font-weight: bold; }
+  .achieve-img { width: 36px; height: 36px; object-fit: contain; }
+  .img-locked { opacity: 0.3; }
+  
+  .info-box { flex: 1; flex-direction: column; }
+  .title-row { flex-direction: row; align-items: center; margin-bottom: 2px; }
+  
+  .achieve-title { font-size: 24px; font-weight: bold; }
+  
+  .new-tag { 
+      font-size: 14px; color: #fff; background-color: #FF453A; 
+      padding: 1px 4px; border-radius: 4px; margin-left: 6px; 
+  }
+
+  .achieve-desc { font-size: 18px; margin-bottom: 4px; lines: 1; text-overflow: ellipsis; }
+  
+  .progress-bar { height: 4px; background-color: #2C2C2E; border-radius: 2px; width: 100%; overflow: hidden; margin-top: 2px; }
+  .progress-fill { height: 100%; background-color: #30D158; border-radius: 2px; }
+  
+  .status-box { flex-direction: row; justify-content: flex-end; align-items: center; margin-left: 8px; }
+  .status-txt { font-size: 18px; font-weight: bold; text-align: right; }
+
+  .claim-btn {
+      padding: 6px 14px;
+      border-radius: 12px;
+      justify-content: center;
+      align-items: center;
+  }
+  .claim-txt { font-size: 18px; font-weight: bold; }
+
+  .custom-actions { flex-direction: row; align-items: center; }
+  .action-btn { 
+      height: 40px; width: 40px; border-radius: 20px; 
+      justify-content: center; align-items: center;
+      margin-left: 8px;
+  }
+  .add-progress { background-color: #3A3A3C; }
+  .action-txt { font-size: 20px; font-weight: bold; }
+  
+  .empty-tip { align-items: center; justify-content: center; padding-top: 40px; padding-bottom: 20px; width: 100%; }
+  .empty-txt { color: #48484A; font-size: 24px; }
+
+  /* Create Card */
+  .create-card {
+    flex-direction: row;
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    padding: 16px; 
+    margin-top: 12px;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #3A3A3C;
+  }
+  .create-icon-circle {
+    width: 32px; height: 32px; border-radius: 16px;
+    justify-content: center; align-items: center; margin-right: 8px;
+  }
+  .create-icon { font-size: 24px; font-weight: bold; margin-top: -2px; }
+  .create-txt { font-size: 24px; color: #8E8E93; font-weight: bold; }
+
+  .spacer { height: 120px; width: 100%; }
+</style>
+<task_progress>
+- [x] Fix Achievements list layout (Wrap in div with flex-col inside scroll)
+</task_progress>
+</write_to_file>

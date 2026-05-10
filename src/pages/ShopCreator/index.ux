@@ -1,0 +1,87 @@
+<import name="shop-item-creator" src="../Shop/ShopItemCreator.ux"></import>
+
+<template>
+  <div class="page">
+    <shop-item-creator
+      editing-index="{{editingIndex}}"
+      initial-data="{{itemData}}"
+      shop-items-list="{{shopItems}}"
+      theme-color="{{themeColor}}"
+      onclose="handleClose"
+      onsave="handleSave"
+      ondelete="handleDelete"
+    ></shop-item-creator>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+
+export default {
+  public: {
+    itemName: ''
+  },
+  private: {
+    itemData: null,
+    editingIndex: -1,
+    shopItems: [],
+    themeColor: 'orange'
+  },
+
+  onInit() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user.settings && user.settings.themeColor) {
+      this.themeColor = user.settings.themeColor;
+    }
+    this.shopItems = user.shopItems || [];
+    if (this.itemName) {
+      const idx = this.shopItems.findIndex(i => i.name === this.itemName);
+      if (idx > -1) {
+        this.editingIndex = idx;
+        this.itemData = this.shopItems[idx];
+      }
+    }
+  },
+
+  handleSave(evt) {
+    const item = evt.detail.item;
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const list = user.shopItems || [];
+
+    if (this.editingIndex >= 0) {
+      list[this.editingIndex] = item;
+      prompt.showToast({ message: '已更新' });
+    } else {
+      list.push(item);
+      prompt.showToast({ message: '已上架' });
+    }
+    user.shopItems = list;
+    appDef.saveUserData();
+    router.back();
+  },
+
+  handleDelete(evt) {
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const list = user.shopItems || [];
+    const idx = this.editingIndex >= 0 ? this.editingIndex : list.findIndex(i => i.name === this.itemName);
+    if (idx > -1) {
+      list.splice(idx, 1);
+      user.shopItems = list;
+      appDef.saveUserData();
+      prompt.showToast({ message: '已删除' });
+    }
+    router.back();
+  },
+
+  handleClose() {
+    router.back();
+  }
+}
+</script>
+
+<style>
+  .page { width: 100%; height: 100%; background-color: #000; }
+</style>

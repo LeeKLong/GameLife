@@ -1,0 +1,474 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="tomato-settings-page">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+      <div class="header-row">
+        <text class="page-title">番茄钟设置</text>
+      </div>
+
+      <!-- Group: Auto Controls -->
+      <div class="card-group">
+        <div class="setting-item" onclick="toggleSetting('autoStartRest')">
+          <div class="item-col">
+            <text class="item-title">自动开始休息</text>
+            <text class="item-sub">专注结束后自动进入休息计时</text>
+          </div>
+          <div class="switch-pill {{tomatoSettings.autoStartRest ? 'switch-on-'+themeColor : 'switch-off'}}">
+             <text class="switch-txt {{tomatoSettings.autoStartRest ? 'c-'+themeColor : ''}}">{{tomatoSettings.autoStartRest ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-item" onclick="toggleSetting('autoStartFocus')">
+          <div class="item-col">
+            <text class="item-title">自动开始专注</text>
+            <text class="item-sub">休息结束后自动进入下一轮专注</text>
+          </div>
+          <div class="switch-pill {{tomatoSettings.autoStartFocus ? 'switch-on-'+themeColor : 'switch-off'}}">
+             <text class="switch-txt {{tomatoSettings.autoStartFocus ? 'c-'+themeColor : ''}}">{{tomatoSettings.autoStartFocus ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-item" onclick="toggleSetting('keepScreenOn')">
+          <div class="item-col">
+            <text class="item-title">屏幕常亮</text>
+            <text class="item-sub">专注时是否保持屏幕常亮</text>
+          </div>
+          <div class="switch-pill {{tomatoSettings.keepScreenOn ? 'switch-on-'+themeColor : 'switch-off'}}">
+             <text class="switch-txt {{tomatoSettings.keepScreenOn ? 'c-'+themeColor : ''}}">{{tomatoSettings.keepScreenOn ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group: Tomato Values -->
+      <text class="section-title mt-20">番茄价值</text>
+      <div class="card-group">
+        <div class="setting-item" onclick="openKeyboard('eatExp')">
+          <div class="item-col">
+            <text class="item-title">食用经验值</text>
+            <text class="item-sub">食用一个番茄获得的经验值</text>
+          </div>
+          <div class="value-pill {{keyboardTarget === 'eatExp' ? 'pill-active-'+themeColor : 'pill-gray'}}">
+            <text class="pill-text {{keyboardTarget === 'eatExp' ? 'c-'+themeColor : ''}}">{{keyboardTarget === 'eatExp' ? currentInputStr : tomatoSettings.eatExp}}</text>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-item" onclick="openKeyboard('sellPrice')">
+          <div class="item-col">
+            <text class="item-title">卖出金币</text>
+            <text class="item-sub">出售一个番茄获得的金币数</text>
+          </div>
+          <div class="value-pill {{keyboardTarget === 'sellPrice' ? 'pill-active-'+themeColor : 'pill-gray'}}">
+            <text class="pill-text {{keyboardTarget === 'sellPrice' ? 'c-'+themeColor : ''}}">{{keyboardTarget === 'sellPrice' ? currentInputStr : tomatoSettings.sellPrice}}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group: Exchange Shop -->
+      <div class="section-header mt-20">
+        <text class="section-title">兑换商店配置</text>
+        <text class="add-btn {{'c-'+themeColor}}" onclick="addExchangeItem">添加商品 +</text>
+      </div>
+      <div class="card-group">
+        <div class="exchange-item" for="{{(idx, item) in tomatoSettings.exchangeItems}}">
+          <div class="item-col">
+            <text class="item-title">{{item.name}}</text>
+            <text class="item-sub">消耗 {{item.cost}} 番茄</text>
+          </div>
+          <div class="item-actions">
+            <div class="action-btn mr-10" onclick="editExchangeItem(idx)">
+              <text class="action-txt">修改</text>
+            </div>
+            <div class="action-btn" onclick="removeExchangeItem(idx)">
+              <text class="action-txt c-red">删除</text>
+            </div>
+          </div>
+        </div>
+        <div class="empty-box" if="{{!tomatoSettings.exchangeItems || tomatoSettings.exchangeItems.length === 0}}">
+          <text class="empty-txt">暂未配置兑换商品</text>
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+    </scroll>
+
+    <!-- Item Picker Overlay (Reference RecipeCreator.ux) -->
+    <div class="picker-overlay" if="{{pickerVisible}}" onclick="closePicker">
+       <div class="picker-content" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title">选择兑换商品</text>
+             </div>
+             <div class="picker-item-box" for="{{(idx, item) in shopItemsList}}" tid="name" onclick="onPickItem(item)">
+                <div class="picker-item-left">
+                   <text class="item-name">{{item.name}}</text>
+                   <text class="item-desc-short" if="{{item.desc}}">{{item.desc}}</text>
+                </div>
+                <text class="item-type-tag {{item.type==='gacha'?'bg-purple':'bg-blue'}}">{{item.type==='gacha'?'盲盒':'道具'}}</text>
+             </div>
+             <div class="empty-picker" if="{{!shopItemsList || shopItemsList.length === 0}}">
+                <text class="empty-txt">商店暂无商品</text>
+             </div>
+          </scroll>
+       </div>
+    </div>
+
+    <!-- Exchange Cost Modal -->
+    <div class="modal-mask" if="{{costModalVisible}}">
+      <div class="modal-box">
+        <text class="modal-title">设置所需番茄数</text>
+        <text class="modal-sub">兑换 {{editingExchangeItem.name}} 需要：</text>
+        <div class="input-row" onclick="openCostKeyboard">
+           <text class="input-val {{keyboardTarget === 'exchangeCost' ? 'c-'+themeColor : ''}}">{{currentInputStr}}</text>
+           <text class="input-unit">个番茄</text>
+        </div>
+        <div class="modal-btns">
+          <div class="modal-btn modal-cancel" onclick="closeCostModal">
+            <text class="modal-btn-txt">取消</text>
+          </div>
+          <div class="modal-btn modal-confirm {{'bg-'+themeColor}}" onclick="saveExchangeItem">
+            <text class="modal-btn-txt c-white">保存</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Interaction -->
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="number"
+      maxlength="8"
+      vibratemode="short"
+      screentype="rect"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import prompt from '@system.prompt';
+import router from '@system.router';
+import vibrator from '@system.vibrator';
+
+export default {
+  data: {
+    themeColor: 'blue',
+    hideKeyboard: true,
+    keyboardTarget: '',
+    tomatoSettings: {
+      autoStartRest: false,
+      autoStartFocus: false,
+      keepScreenOn: false,
+      sellPrice: 10,
+      eatExp: 10,
+      exchangeItems: []
+    },
+    currentInputStr: '0',
+    pickerVisible: false,
+    costModalVisible: false,
+    shopItemsList: [],
+    editingExchangeItem: null,
+    editingExchangeIndex: -1
+  },
+
+  onInit() {
+    this.refreshData();
+  },
+
+  refreshData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user && user.settings) {
+      this.themeColor = user.settings.themeColor || 'blue';
+      if (user.settings.tomatoSettings) {
+        this.tomatoSettings = JSON.parse(JSON.stringify(user.settings.tomatoSettings));
+      }
+      this.shopItemsList = user.shopItems || [];
+    }
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  toggleSetting(key) {
+    this.vibrate();
+    this.tomatoSettings[key] = !this.tomatoSettings[key];
+    this.saveSettings();
+  },
+
+  openKeyboard(target) {
+    this.vibrate();
+    this.keyboardTarget = target;
+    this.currentInputStr = String(this.tomatoSettings[target]);
+    this.hideKeyboard = false;
+  },
+
+  openCostKeyboard() {
+    this.vibrate();
+    this.keyboardTarget = 'exchangeCost';
+    this.currentInputStr = String(this.editingExchangeItem.cost || 0);
+    this.hideKeyboard = false;
+  },
+
+  closeKeyboard() {
+    this.vibrate();
+    if (this.keyboardTarget === 'exchangeCost') {
+        this.editingExchangeItem.cost = parseInt(this.currentInputStr) || 0;
+    } else if (this.keyboardTarget) {
+        this.tomatoSettings[this.keyboardTarget] = parseInt(this.currentInputStr) || 0;
+    }
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+    this.saveSettings();
+  },
+
+  onDelete() {
+    this.vibrate();
+    let str = this.currentInputStr;
+    if (str.length > 1) {
+      str = str.slice(0, -1);
+    } else {
+      str = '0';
+    }
+    this.currentInputStr = str;
+  },
+
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+    let str = this.currentInputStr;
+    if (str === '0') str = content;
+    else if (str.length < 8) str += content;
+    this.currentInputStr = str;
+  },
+
+  saveSettings() {
+    const appDef = this.$app.$def;
+    if (!appDef.globalData.userInfo.settings) appDef.globalData.userInfo.settings = {};
+    appDef.globalData.userInfo.settings.tomatoSettings = JSON.parse(JSON.stringify(this.tomatoSettings));
+    appDef.saveUserData();
+  },
+
+  addExchangeItem() {
+    this.vibrate();
+    this.editingExchangeIndex = -1;
+    this.pickerVisible = true;
+  },
+
+  editExchangeItem(idx) {
+    this.vibrate();
+    this.editingExchangeIndex = idx;
+    this.editingExchangeItem = { ...this.tomatoSettings.exchangeItems[idx] };
+    this.costModalVisible = true;
+  },
+
+  removeExchangeItem(idx) {
+    this.vibrate();
+    this.tomatoSettings.exchangeItems.splice(idx, 1);
+    this.saveSettings();
+  },
+
+  onPickItem(item) {
+    this.vibrate();
+    this.editingExchangeItem = {
+      name: item.name,
+      cost: 5 // Default cost
+    };
+    this.pickerVisible = false;
+    this.costModalVisible = true;
+  },
+
+  closePicker() {
+    this.pickerVisible = false;
+  },
+
+  closeCostModal() {
+    this.costModalVisible = false;
+    this.editingExchangeItem = null;
+  },
+
+  saveExchangeItem() {
+    this.vibrate();
+    if (this.editingExchangeIndex >= 0) {
+      this.tomatoSettings.exchangeItems.splice(this.editingExchangeIndex, 1, this.editingExchangeItem);
+    } else {
+      this.tomatoSettings.exchangeItems.push(this.editingExchangeItem);
+    }
+    this.costModalVisible = false;
+    this.editingExchangeItem = null;
+    this.saveSettings();
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  }
+}
+</script>
+
+<style>
+  .tomato-settings-page { flex-direction: column; background-color: #000; width: 100%; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+
+  .header-row { flex-direction: row; align-items: center; margin-bottom: 20px; margin-top: 10px; padding-left: 8px; }
+  .page-title { font-size: 32px; color: #fff; font-weight: bold; }
+
+  .section-header { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-right: 8px; }
+  .section-title { font-size: 22px; color: #8E8E93; font-weight: bold; margin-left: 8px; }
+  .add-btn { font-size: 22px; font-weight: bold; }
+  .mt-20 { margin-top: 20px; }
+
+  .card-group { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 0 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+    margin-bottom: 12px;
+  }
+
+  .setting-item { 
+    min-height: 100px; 
+    padding: 16px 0; 
+    flex-direction: row;
+    justify-content: space-between; 
+    align-items: center; 
+  }
+
+  .divider { height: 1px; background-color: rgba(255,255,255,0.05); width: 100%; }
+
+  .item-col { flex-direction: column; flex: 1; }
+  .item-title { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-sub { font-size: 20px; color: #8E8E93; margin-top: 4px; }
+
+  .switch-pill { padding: 6px 16px; border-radius: 12px; background-color: #2C2C2E; }
+  .switch-off { background-color: #2C2C2E; }
+  .switch-txt { font-size: 22px; color: #8E8E93; font-weight: bold; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 52px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+    margin-left: 12px;
+  }
+  
+  .pill-text { color: #fff; font-size: 24px; font-weight: bold; }
+  .pill-gray { background-color: #2C2C2E; }
+
+  .exchange-item {
+    min-height: 100px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    flex-direction: row; justify-content: space-between; align-items: center;
+  }
+  .item-actions { flex-direction: row; }
+  .action-btn { padding: 6px 12px; border-radius: 10px; background-color: #2C2C2E; }
+  .mr-10 { margin-right: 10px; }
+  .action-txt { font-size: 20px; color: #8E8E93; font-weight: bold; }
+  .c-red { color: #FF453A; }
+
+  .empty-box { padding: 40px; align-items: center; justify-content: center; }
+  .empty-txt { color: #444; font-size: 22px; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; z-index: 50; }
+  .spacer { height: 100px; }
+
+  /* Picker Overlay Style (Ref: RecipeCreator.ux) */
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 70%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .item-name { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-desc-short { font-size: 18px; color: #8E8E93; lines: 1; text-overflow: ellipsis; margin-top: 4px; }
+  .item-type-tag { font-size: 16px; padding: 2px 8px; border-radius: 6px; color: #fff; font-weight: bold; flex-shrink: 0; }
+  
+  .bg-blue { background-color: #0A84FF; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  /* Modal Style */
+  .modal-mask {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.8);
+    justify-content: center; align-items: center;
+    z-index: 200;
+  }
+  .modal-box {
+    width: 400px; background-color: #1C1C1E; border-radius: 24px;
+    padding: 24px; flex-direction: column; align-items: center;
+  }
+  .modal-title { font-size: 30px; color: #fff; font-weight: bold; margin-bottom: 12px; }
+  .modal-sub { font-size: 22px; color: #8E8E93; margin-bottom: 20px; }
+  .input-row { 
+    flex-direction: row; align-items: baseline; margin-bottom: 30px;
+    padding: 10px 20px; background-color: #000; border-radius: 12px;
+  }
+  .input-val { font-size: 48px; font-weight: bold; color: #fff; margin-right: 10px; }
+  .input-unit { font-size: 24px; color: #8E8E93; }
+  .modal-btns { flex-direction: row; width: 100%; justify-content: space-around; }
+  .modal-btn { flex: 1; height: 70px; border-radius: 16px; justify-content: center; align-items: center; margin: 0 10px; }
+  .modal-cancel { background-color: #2C2C2E; }
+  .modal-confirm { }
+  .modal-btn-txt { font-size: 24px; font-weight: bold; color: #8E8E93; }
+  .c-white { color: #fff; }
+
+  /* Theme colors */
+  .switch-on-orange { background-color: rgba(255, 159, 10, 0.2); }
+  .switch-on-blue { background-color: rgba(78, 129, 238, 0.2); }
+  .switch-on-green { background-color: rgba(163, 250, 0, 0.2); }
+  .switch-on-purple { background-color: rgba(191, 90, 242, 0.2); }
+
+  .pill-active-blue { background-color: rgba(78, 129, 238, 0.2); }
+  .pill-active-orange { background-color: rgba(255, 159, 10, 0.2); }
+  .pill-active-green { background-color: rgba(163, 250, 0, 0.2); }
+  .pill-active-purple { background-color: rgba(191, 90, 242, 0.2); }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  .c-blue { color: #4E81EE; }
+  .c-orange { color: #FF9F0A; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+</style>

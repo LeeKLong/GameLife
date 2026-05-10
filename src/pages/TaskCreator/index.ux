@@ -1,0 +1,95 @@
+<import name="task-creator" src="../Todo/TaskCreator.ux"></import>
+
+<template>
+  <div class="page">
+    <task-creator
+      editing-task-id="{{taskId}}"
+      initial-data="{{taskData}}"
+      shop-items-list="{{shopItems}}"
+      theme-color="{{themeColor}}"
+      onclose="handleClose"
+      onsave="handleSave"
+      ondelete="handleDelete"
+    ></task-creator>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+
+export default {
+  public: {
+    taskId: null
+  },
+  private: {
+    taskData: null,
+    shopItems: [],
+    themeColor: 'orange'
+  },
+
+  onInit() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user.settings && user.settings.themeColor) {
+      this.themeColor = user.settings.themeColor;
+    }
+    this.shopItems = user.shopItems || [];
+    if (this.taskId) {
+      const list = user.todoList || [];
+      const found = list.find(t => String(t.id) === String(this.taskId));
+      if (found) this.taskData = found;
+    }
+  },
+
+  handleSave(evt) {
+    const newTask = evt.detail.task;
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const list = user.todoList || [];
+    const attrType = newTask.attrType || 'strength';
+    const attrVal = parseInt(newTask.attrVal) || 0;
+
+    let deadlineTimestamp = null;
+    if (newTask.deadline && newTask.deadline !== '不限') {
+      deadlineTimestamp = appDef.calculateDeadlineTimestamp(newTask.deadline, Date.now());
+    }
+
+    if (this.taskId) {
+      const idx = list.findIndex(t => String(t.id) === String(this.taskId));
+      if (idx > -1) {
+        list[idx] = { ...list[idx], ...newTask, attrType, attrVal, deadlineTimestamp, penaltyApplied: false };
+        prompt.showToast({ message: '已更新' });
+      }
+    } else {
+      list.push({ ...newTask, id: Date.now(), completed: false, attrType, attrVal, deadlineTimestamp, penaltyApplied: false });
+      prompt.showToast({ message: '已发布' });
+    }
+    user.todoList = list;
+    appDef.saveUserData();
+    router.back();
+  },
+
+  handleDelete(evt) {
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const list = user.todoList || [];
+    const taskId = evt.detail.taskId || this.taskId;
+    const idx = list.findIndex(t => String(t.id) === String(taskId));
+    if (idx > -1) {
+      list.splice(idx, 1);
+      user.todoList = list;
+      appDef.saveUserData();
+      prompt.showToast({ message: '已删除' });
+    }
+    router.back();
+  },
+
+  handleClose() {
+    router.back();
+  }
+}
+</script>
+
+<style>
+  .page { width: 100%; height: 100%; background-color: #000; }
+</style>

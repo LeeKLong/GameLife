@@ -1,0 +1,853 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="creator-area">
+    <scroll class="form-box" scroll-y="true" bounces="true" onscroll="handleScroll">
+      <div class="header-section">
+         <text class="page-main-title">{{editingIndex >= 0 ? '编辑商品' : '发布新商品'}}</text>
+         
+         <div class="type-selector">
+            <div class="type-btn {{newItem.type==='prop' ? 'active-type-'+themeColor : ''}}" onclick="setItemType('prop')">
+                <text class="type-txt {{newItem.type==='prop' ? 'c-'+themeColor : 'c-gray'}}">道具</text>
+            </div>
+            <div class="type-btn {{newItem.type==='gacha' ? 'active-type-'+themeColor : ''}}" onclick="setItemType('gacha')">
+                <text class="type-txt {{newItem.type==='gacha' ? 'c-'+themeColor : 'c-gray'}}">盲盒</text>
+            </div>
+         </div>
+      </div>
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">基础信息</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('name')">
+            <text class="control-label">名称</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text {{keyboardTarget === 'name' ? 'editing-text' : ''}}">{{getDisplayValue(newItem.name, 'name')}}</text>
+            </div>
+          </div>
+          <div class="control-row" onclick="openKeyboard('price')">
+            <text class="control-label">售价</text>
+            <div class="value-pill pill-gold">
+               <text class="pill-text c-gold">{{newItem.price}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group" if="{{newItem.type==='prop'}}">
+        <text class="group-title {{'c-'+themeColor}}">效果设定</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('effectCoins')">
+            <text class="control-label">金币</text>
+            <div class="value-pill {{newItem.effectCoins<0?'pill-red':(newItem.effectCoins>0?'pill-green':'pill-gray')}}">
+               <text class="pill-text {{newItem.effectCoins<0?'c-red':(newItem.effectCoins>0?'c-green':'c-gray')}}">{{newItem.effectCoins}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="openKeyboard('effectExp')">
+            <text class="control-label">经验</text>
+            <div class="value-pill {{newItem.effectExp<0?'pill-red':(newItem.effectExp>0?'pill-green':'pill-gray')}}">
+               <text class="pill-text {{newItem.effectExp<0?'c-red':(newItem.effectExp>0?'c-green':'c-gray')}}">{{newItem.effectExp}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="cycleEffectAttr(1)">
+            <text class="control-label">属性</text>
+            <div class="value-pill {{getAttrPillColor(newItem.effectAttr)}}">
+               <text class="pill-text {{getAttrColor(newItem.effectAttr)}}">{{getAttrName(newItem.effectAttr)}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{newItem.effectAttr !== 'none'}}" onclick="openKeyboard('effectAttrVal')">
+            <text class="control-label">点数</text>
+            <div class="value-pill {{newItem.effectAttrVal<0?'pill-red':'pill-gray'}}">
+               <text class="pill-text {{newItem.effectAttrVal<0?'c-red':''}}">{{newItem.effectAttrVal}}</text>
+            </div>
+          </div>
+
+           <div class="control-row" onclick="openKeyboard('duration')">
+            <text class="control-label">持续时间(分)</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newItem.duration}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group" if="{{newItem.type==='gacha'}}">
+        <text class="group-title {{'c-'+themeColor}}">奖池设定</text>
+        <div class="control-card">
+          <div class="reward-list">
+             <div class="reward-item-box" for="{{(idx, rItem) in newItem.rewards}}">
+                
+                <!-- Type Selector -->
+                <div class="control-row mb-12" onclick="cycleRewardType(idx, 1)">
+                  <text class="control-label">奖项 {{idx+1}}</text>
+                  <div class="value-pill pill-gray">
+                     <text class="pill-text">{{getRewardTypeLabel(rItem.type)}}</text>
+                  </div>
+                </div>
+
+                <!-- Attr Sub-Selector -->
+                <div class="control-row mb-12" if="{{rItem.type === 'attr'}}" onclick="cycleRewardAttr(idx, 1)">
+                  <text class="control-label">属性类型</text>
+                  <div class="value-pill {{getRewardAttrPillColor(rItem.attrType)}}">
+                     <text class="pill-text {{getRewardAttrColor(rItem.attrType)}}">{{getRewardAttrLabel(rItem.attrType)}}</text>
+                  </div>
+                </div>
+
+                <!-- Content Selector (If Item) -->
+                <div class="control-row mb-12" if="{{rItem.type === 'item'}}" onclick="cycleRewardItem(idx, 1)">
+                  <text class="control-label">发入物品</text>
+                  <div class="value-pill pill-blue">
+                     <text class="pill-text c-blue">{{rItem.name}}</text>
+                  </div>
+                </div>
+
+                <!-- Content Selector (If Gacha) -->
+                <div class="control-row mb-12" if="{{rItem.type === 'gacha'}}" onclick="cycleRewardGacha(idx, 1)">
+                  <text class="control-label">放入盲盒</text>
+                  <div class="value-pill pill-purple">
+                     <text class="pill-text c-purple">{{rItem.name}}</text>
+                  </div>
+                </div>
+
+                <!-- Value/Count Selector -->
+                <div class="control-row mb-12" onclick="openKeyboard('val-' + idx)">
+                  <text class="control-label">{{rItem.type === 'item' ? '数量' : '数值'}}</text>
+                  <div class="value-pill pill-gold">
+                     <text class="pill-text c-gold">{{rItem.count || rItem.val}}</text>
+                  </div>
+                </div>
+
+                <!-- Rate Selector -->
+                <div class="control-row mb-12" onclick="openKeyboard('rate-' + idx)">
+                  <text class="control-label">概率</text>
+                  <div class="value-pill pill-gray">
+                     <text class="pill-text">{{rItem.rate}}%</text>
+                  </div>
+                </div>
+                
+                <div class="del-slot-btn" if="{{newItem.rewards.length > 1}}" onclick="removeRewardSlot(idx)">
+                  <text class="del-slot-txt">删除此奖项</text>
+                </div>
+                <div class="divider" if="{{idx < newItem.rewards.length - 1}}"></div>
+             </div>
+             
+             <div class="add-slot-btn" onclick="addRewardSlot">
+                <text class="add-slot-txt {{'c-'+themeColor}}">增加抽奖项</text>
+             </div>
+          </div>
+        </div>
+      </div>
+      <div class="save-section {{'bg-'+themeColor}}" onclick="emitSave">
+          <text class="save-btn-txt">{{editingIndex >= 0 ? '保存商品' : '上架商品'}}</text>
+      </div>
+
+      <div class="delete-section" if="{{editingIndex >= 0}}" onclick="emitDelete">
+          <text class="delete-btn-txt">删除此商品</text>
+      </div>
+
+      <div class="spacer-lg"></div>
+    </scroll>
+
+    <!-- Mask to close keyboard -->
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="{{keyboardType}}"
+      maxlength="8"
+      vibratemode="short"
+      screentype="{{screenType}}"
+      onvisibilityChange="onVisibilityChange"
+      onkeyDown="onKeyDown"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import vibrator from "@system.vibrator";
+
+export default {
+  props: [
+    'editingIndex', 
+    'initialData', 
+    'shopItemsList', // Need full list for reward selection
+    'themeColor'
+  ],
+  data: {
+    presetNames: ['能量水', '幸运符', '免死牌', '双倍卡', '快乐水', '悔过书', '彩票', '休息卡', '一杯奶茶', '摸鱼券', '解压球', '小零食', '电影票', '散步时间', '午睡许可'],
+    isScrolled: false,
+    nameIndex: 0,
+    
+    attrTypes: ['none', 'strength', 'intelligence', 'charm'],
+    attrNames: ['无', '力量', '智力', '魅力'],
+    customAttrOptions: [],
+    attrIndex: 0,
+    
+    // Reward Types
+    rewardTypes: ['coins', 'exp', 'attr', 'item', 'gacha'],
+    rewardTypeLabels: ['金币', '经验', '属性', '道具', '盲盒'],
+
+    // Reward Attr Sub-Types
+    rewardAttrTypes: ['strength', 'intelligence', 'charm', 'all'],
+    rewardAttrLabels: ['力量', '智力', '魅力', '全属性'],
+
+    // Input Method
+    hideKeyboard: true,
+    keyboardType: "QWERTY",
+    screenType: "rect",
+    keyboardTarget: '',
+    negativeSign: false,
+
+    newItem: {
+      type: 'prop', 
+      name: '能量水',
+      price: 50,
+      effectCoins: 0,
+      effectExp: 10,
+      effectAttr: 'none',
+      effectAttrVal: 0,
+      duration: 0,
+      rewards: []
+    }
+  },
+
+  onInit() {
+    const user = this.$app.$def.globalData.userInfo;
+    
+    // 加载原生属性颜色配置
+    if (user.baseAttrConfig) {
+      const strColor = (user.baseAttrConfig.strength && user.baseAttrConfig.strength.color) || 'red';
+      const intColor = (user.baseAttrConfig.intelligence && user.baseAttrConfig.intelligence.color) || 'blue';
+      const chaColor = (user.baseAttrConfig.charm && user.baseAttrConfig.charm.color) || 'purple';
+      this.baseAttrColors = { strength: strColor, intelligence: intColor, charm: chaColor };
+    } else {
+      this.baseAttrColors = { strength: 'red', intelligence: 'blue', charm: 'purple' };
+    }
+
+    if (user.customAttributes && user.customAttributes.length > 0) {
+      this.customAttrOptions = user.customAttributes.map(a => ({ name: a.name, color: a.color, icon: a.icon }));
+      this.attrTypes = ['none', 'strength', 'intelligence', 'charm', ...this.customAttrOptions.map(o => o.name)];
+      
+      const strName = (user.baseAttrConfig && user.baseAttrConfig.strength && user.baseAttrConfig.strength.name) || '力量';
+      const intName = (user.baseAttrConfig && user.baseAttrConfig.intelligence && user.baseAttrConfig.intelligence.name) || '智力';
+      const chaName = (user.baseAttrConfig && user.baseAttrConfig.charm && user.baseAttrConfig.charm.name) || '魅力';
+      this.attrNames = ['无', strName, intName, chaName, ...this.customAttrOptions.map(o => o.name)];
+      
+      this.rewardAttrTypes = ['strength', 'intelligence', 'charm', 'all', ...this.customAttrOptions.map(o => o.name)];
+      this.rewardAttrLabels = [strName, intName, chaName, '全属性', ...this.customAttrOptions.map(o => o.name)];
+    } else {
+      const strName = (user.baseAttrConfig && user.baseAttrConfig.strength && user.baseAttrConfig.strength.name) || '力量';
+      const intName = (user.baseAttrConfig && user.baseAttrConfig.intelligence && user.baseAttrConfig.intelligence.name) || '智力';
+      const chaName = (user.baseAttrConfig && user.baseAttrConfig.charm && user.baseAttrConfig.charm.name) || '魅力';
+      this.attrNames = ['无', strName, intName, chaName];
+      this.rewardAttrLabels = [strName, intName, chaName, '全属性'];
+      this.rewardAttrTypes = ['strength', 'intelligence', 'charm', 'all'];
+    }
+
+    if (this.initialData) {
+        // Editing existing item
+        this.newItem = JSON.parse(JSON.stringify(this.initialData));
+        if (!this.newItem.effectAttr) this.newItem.effectAttr = 'none';
+        if (!this.newItem.effectAttrVal) this.newItem.effectAttrVal = 0;
+
+        const nIdx = this.presetNames.indexOf(this.newItem.name);
+        if (nIdx >= 0) this.nameIndex = nIdx;
+        
+        const aIdx = this.attrTypes.indexOf(this.newItem.effectAttr);
+        if (aIdx >= 0) this.attrIndex = aIdx;
+        
+        // Convert legacy fixed reward to new mixed format if needed
+        if (this.newItem.type === 'gacha' && (!this.newItem.rewards || this.newItem.rewards.length === 0)) {
+             // Legacy mode: it had gachaRewardType, gachaRewardVal, gachaRate
+             const rType = this.newItem.gachaRewardType || 'coins';
+             const rVal = this.newItem.gachaRewardVal || 100;
+             const rRate = this.newItem.gachaRate || 20;
+             
+             this.newItem.rewards = [{
+                 type: rType,
+                 val: rVal,
+                 rate: rRate,
+                 name: 'Legacy' // Placeholder
+             }];
+        }
+    } else {
+       const user = this.$app.$def.globalData.userInfo;
+       const rememberConfig = user.settings && user.settings.rememberLastConfig;
+       if (rememberConfig && user.lastShopItemConfig) {
+           this.newItem = JSON.parse(JSON.stringify(user.lastShopItemConfig));
+           if (!this.newItem.effectAttr) this.newItem.effectAttr = 'none';
+           const aIdx = this.attrTypes.indexOf(this.newItem.effectAttr);
+           if (aIdx >= 0) this.attrIndex = aIdx;
+       } else {
+           this.resetForm();
+       }
+    }
+  },
+
+  resetForm() {
+    const randomName = this.presetNames[Math.floor(Math.random() * this.presetNames.length)];
+    this.newItem = {
+      type: 'prop', name: randomName, price: 50,
+      effectCoins: 0, effectExp: 10,
+      effectAttr: 'none', effectAttrVal: 0,
+      duration: 0,
+      rewards: [{ type: 'coins', val: 100, rate: 20 }]
+    };
+  },
+  
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  handleScroll(evt) {
+    const scrollY = evt.scrollY || 0;
+    this.isScrolled = scrollY > 20;
+  },
+
+  getDisplayValue(val, target) {
+    if (this.keyboardTarget === target) {
+       let str = String(val);
+       // Reduce to 3 chars to ensure no overflow lag at boundary
+       if (str.length > 5) {
+          return str.slice(-5);
+       }
+    }
+    return val;
+  },
+
+  cycleItemType() {
+    this.vibrate();
+    this.newItem = { ...this.newItem, type: this.newItem.type === 'prop' ? 'gacha' : 'prop' };
+  },
+
+  setItemType(type) {
+    this.vibrate();
+    if (this.newItem.type !== type) {
+      this.newItem = { ...this.newItem, type };
+    }
+  },
+
+  getAttrName(type) {
+    const idx = this.attrTypes.indexOf(type);
+    return idx >= 0 ? this.attrNames[idx] : '无';
+  },
+
+  getAttrColor(type) {
+    if (this.baseAttrColors && this.baseAttrColors[type]) {
+      return 'c-' + this.baseAttrColors[type];
+    }
+    const map = { strength: 'c-red', intelligence: 'c-blue', charm: 'c-purple' };
+    if (map[type]) return map[type];
+    const custom = this.customAttrOptions.find(o => o.name === type);
+    return custom ? 'c-' + custom.color : 'c-gray';
+  },
+
+  getAttrPillColor(type) {
+    if (this.baseAttrColors && this.baseAttrColors[type]) {
+      return 'pill-' + this.baseAttrColors[type];
+    }
+    const map = { strength: 'pill-red', intelligence: 'pill-blue', charm: 'pill-purple' };
+    if (map[type]) return map[type];
+    const custom = this.customAttrOptions.find(o => o.name === type);
+    return custom ? 'pill-' + custom.color : 'pill-gray';
+  },
+
+  cycleEffectAttr(dir) {
+    this.vibrate();
+    this.attrIndex = (this.attrIndex + dir + this.attrTypes.length) % this.attrTypes.length;
+    this.newItem.effectAttr = this.attrTypes[this.attrIndex];
+    if (this.newItem.effectAttr !== 'none' && this.newItem.effectAttrVal === 0) {
+        this.newItem.effectAttrVal = 1;
+    }
+  },
+  
+  // === Mixed Reward Logic ===
+  
+  getRewardTypeLabel(type) {
+      const idx = this.rewardTypes.indexOf(type);
+      return idx >= 0 ? this.rewardTypeLabels[idx] : type;
+  },
+
+  cycleRewardType(idx, dir) {
+      this.vibrate();
+      const slot = this.newItem.rewards[idx];
+      const currentTypeIdx = this.rewardTypes.indexOf(slot.type);
+      const newTypeIdx = (currentTypeIdx + dir + this.rewardTypes.length) % this.rewardTypes.length;
+      
+      slot.type = this.rewardTypes[newTypeIdx];
+      
+      // Init defaults for type switch
+      if (slot.type === 'item') {
+          if (!slot.name || slot.name === 'Legacy' || !slot.count) {
+              const propItems = (this.shopItemsList || []).filter(i => i.type !== 'gacha');
+              if (propItems.length > 0) {
+                  slot.name = propItems[0].name;
+                  slot.itemIndex = 0;
+              } else {
+                  slot.name = '无道具';
+              }
+              slot.count = 1;
+          }
+          delete slot.val;
+          delete slot.attrType;
+      } else if (slot.type === 'attr') {
+          if (!slot.attrType) slot.attrType = 'strength';
+          if (!slot.val) slot.val = 1;
+          delete slot.itemIndex;
+          delete slot.name;
+          delete slot.count;
+      } else if (slot.type === 'gacha') {
+          // Reward is a gacha box - always reset to first gacha item
+          const gachaItems = (this.shopItemsList || []).filter(i => i.type === 'gacha');
+          slot.name = gachaItems.length > 0 ? gachaItems[0].name : '盲盒';
+          slot.itemIndex = 0;
+          slot.count = slot.count || 1;
+          delete slot.val;
+          delete slot.attrType;
+      } else {
+          if (!slot.val) slot.val = 10;
+          delete slot.itemIndex;
+          delete slot.name;
+          delete slot.count;
+          delete slot.attrType;
+      }
+      
+      this.newItem.rewards.splice(idx, 1, slot);
+  },
+
+  cycleRewardAttr(idx, dir) {
+      this.vibrate();
+      const slot = this.newItem.rewards[idx];
+      const currentIdx = this.rewardAttrTypes.indexOf(slot.attrType || 'strength');
+      const newIdx = (currentIdx + dir + this.rewardAttrTypes.length) % this.rewardAttrTypes.length;
+      slot.attrType = this.rewardAttrTypes[newIdx];
+      this.newItem.rewards.splice(idx, 1, { ...slot });
+  },
+
+  getRewardAttrLabel(attrType) {
+      const i = this.rewardAttrTypes.indexOf(attrType);
+      return i >= 0 ? this.rewardAttrLabels[i] : '力量';
+  },
+
+  getRewardAttrColor(attrType) {
+      if (this.baseAttrColors && this.baseAttrColors[attrType]) {
+        return 'c-' + this.baseAttrColors[attrType];
+      }
+      const map = { strength: 'c-red', intelligence: 'c-blue', charm: 'c-purple', all: 'c-gold' };
+      if (map[attrType]) return map[attrType];
+      const custom = this.customAttrOptions.find(o => o.name === attrType);
+      return custom ? 'c-' + custom.color : 'c-red';
+  },
+
+  getRewardAttrPillColor(attrType) {
+      if (this.baseAttrColors && this.baseAttrColors[attrType]) {
+        return 'pill-' + this.baseAttrColors[attrType];
+      }
+      const map = { strength: 'pill-red', intelligence: 'pill-blue', charm: 'pill-purple', all: 'pill-gold' };
+      if (map[attrType]) return map[attrType];
+      const custom = this.customAttrOptions.find(o => o.name === attrType);
+      return custom ? 'pill-' + custom.color : 'pill-red';
+  },
+
+  cycleRewardItem(slotIdx, dir) {
+    this.vibrate();
+    const propItems = (this.shopItemsList || []).filter(i => i.type !== 'gacha');
+    if (propItems.length === 0) { prompt.showToast({ message: '暂无道具可选' }); return; }
+    const slot = this.newItem.rewards[slotIdx];
+    let currentIdx = propItems.findIndex(i => i.name === slot.name);
+    if (currentIdx < 0) currentIdx = 0;
+    let newIdx = (currentIdx + dir + propItems.length) % propItems.length;
+    slot.itemIndex = newIdx;
+    slot.name = propItems[newIdx].name;
+    this.newItem.rewards.splice(slotIdx, 1, slot);
+  },
+
+  cycleRewardGacha(slotIdx, dir) {
+    this.vibrate();
+    const gachaItems = (this.shopItemsList || []).filter(i => i.type === 'gacha');
+    if (gachaItems.length === 0) return;
+    const slot = this.newItem.rewards[slotIdx];
+    let currentIdx = gachaItems.findIndex(i => i.name === slot.name);
+    if (currentIdx < 0) currentIdx = 0;
+    let newIdx = (currentIdx + dir + gachaItems.length) % gachaItems.length;
+    slot.name = gachaItems[newIdx].name;
+    slot.itemIndex = newIdx;
+    this.newItem.rewards.splice(slotIdx, 1, { ...slot });
+  },
+  
+  getTotalWeight() {
+      if (!this.newItem.rewards || this.newItem.rewards.length === 0) return 1;
+      return this.newItem.rewards.reduce((sum, r) => sum + (r.rate || 0), 0) || 1;
+  },
+
+  addRewardSlot() {
+     this.vibrate();
+     this.newItem.rewards.push({ type: 'coins', val: 100, rate: 20 });
+  },
+  
+  removeRewardSlot(idx) {
+     this.vibrate();
+     this.newItem.rewards.splice(idx, 1);
+  },
+
+  // Input Method Handlers
+  openKeyboard(target) {
+    // Check for val-X or rate-X or number fields
+    if (target === 'duration' || target === 'price' || target === 'effectAttrVal' || target === 'effectCoins' || target === 'effectExp' || target.startsWith('rate-') || target.startsWith('val-')) {
+       this.keyboardType = 'number';
+    } else {
+       this.keyboardType = 'QWERTY';
+    }
+
+    if (this.keyboardTarget === target && !this.hideKeyboard) {
+        this.closeKeyboard();
+    } else {
+        this.keyboardTarget = target;
+        this.hideKeyboard = false;
+        // 初始化负号标志
+        const numericFields = ['effectCoins', 'effectExp', 'effectAttrVal', 'price', 'duration'];
+        if (numericFields.includes(target)) {
+            this.negativeSign = (this.newItem[target] || 0) < 0;
+        } else {
+            this.negativeSign = false;
+        }
+
+        // Wipe default content if user taps to type their own name
+        if (target === 'name' && this.presetNames.includes(this.newItem.name)) {
+            this.newItem.name = '';
+        }
+    }
+  },
+  
+  closeKeyboard() {
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+  },
+
+  onVisibilityChange() {},
+  
+  onKeyDown() {},
+  
+  onDelete() {
+    this.vibrate();
+    if (this.keyboardTarget === 'name') {
+       this.newItem.name = this.newItem.name.slice(0, -1);
+    } else if (this.keyboardTarget.startsWith('rate-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       const slot = this.newItem.rewards[idx];
+       let str = String(slot.rate);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           slot.rate = (next === '' || next === '.') ? 0 : next;
+           this.newItem.rewards.splice(idx, 1, { ...slot });
+       }
+    } else if (this.keyboardTarget.startsWith('val-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       const slot = this.newItem.rewards[idx];
+       let targetVal = slot.type === 'item' ? slot.count : slot.val;
+       let str = String(targetVal);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           let final = (next === '' || next === '-') ? 0 : parseInt(next, 10);
+           if (slot.type === 'item') slot.count = final;
+           else slot.val = final;
+           this.newItem.rewards.splice(idx, 1, slot);
+       }
+    } else {
+       // Regular numeric fields
+       let key = this.keyboardTarget;
+       if (this.newItem[key] !== undefined) {
+           let str = String(Math.abs(this.newItem[key] || 0));
+           if (str.length > 0) {
+               let next = str.slice(0, -1);
+               let val = (next === '' || next === '0' || next === '') ? 0 : parseInt(next, 10);
+               if (val === 0) this.negativeSign = false;
+               this.newItem[key] = this.negativeSign ? -val : val;
+           }
+       }
+    }
+  },
+  
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+    if (this.keyboardTarget === 'name') {
+       this.newItem.name += content;
+    } else if (this.keyboardTarget.startsWith('rate-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       const slot = this.newItem.rewards[idx];
+       
+       let str = String(slot.rate || 0);
+       if (content === '.' && str.includes('.')) return;
+       let next = (str === '0' && content !== '.') ? content : str + content;
+       
+       slot.rate = next;
+       this.newItem.rewards.splice(idx, 1, { ...slot });
+    } else if (this.keyboardTarget.startsWith('val-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       const slot = this.newItem.rewards[idx];
+       let targetVal = slot.type === 'item' ? slot.count : slot.val;
+       
+       let str = String(targetVal || 0);
+       let nextVal = str === '0' ? parseInt(content, 10) : parseInt(str + content, 10);
+
+       if (isNaN(nextVal)) nextVal = 0;
+       
+       if (slot.type === 'item') slot.count = nextVal;
+       else slot.val = nextVal;
+       this.newItem.rewards.splice(idx, 1, slot);
+    } else {
+       // Regular numeric fields
+       let key = this.keyboardTarget;
+       if (this.newItem[key] !== undefined) {
+           if (content === '-') {
+               // 切换符号
+               this.negativeSign = !this.negativeSign;
+               const absVal = Math.abs(this.newItem[key] || 0);
+               this.newItem[key] = this.negativeSign ? -absVal : absVal;
+               return;
+           }
+           let str = String(Math.abs(this.newItem[key] || 0));
+           let nextVal = str === '0' ? parseInt(content, 10) : parseInt(str + content, 10);
+           if (isNaN(nextVal)) nextVal = 0;
+           this.newItem[key] = this.negativeSign ? -nextVal : nextVal;
+       }
+    }
+  },
+
+  emitClose() {
+    this.vibrate();
+    this.$emit('close');
+  },
+
+  emitDelete() {
+    this.vibrate();
+    this.$emit('delete', { index: this.editingIndex });
+  },
+
+  emitSave() {
+    this.vibrate();
+    if (!this.newItem.name || this.newItem.name.trim() === '') {
+        prompt.showToast({ message: '请输入商品名称' });
+        return;
+    }
+    // Save config if setting is on (only for new items, not edits)
+    if (this.editingIndex < 0) {
+        const user = this.$app.$def.globalData.userInfo;
+        if (user.settings && user.settings.rememberLastConfig) {
+            user.lastShopItemConfig = JSON.parse(JSON.stringify(this.newItem));
+            this.$app.$def.saveUserData();
+        }
+    }
+    let desc = "";
+
+    if (this.newItem.type === 'gacha') {
+        if (this.newItem.rewards.length === 0) {
+            prompt.showToast({ message: '请添加至少一个奖励' });
+            return;
+        }
+        
+        // Normalize rates and resolve 'attr' type before saving
+        const totalWeight = this.getTotalWeight();
+        const normalizedRewards = this.newItem.rewards.map(r => {
+            const resolved = { ...r, rate: Math.round(r.rate / totalWeight * 10000) / 100 };
+            if (resolved.type === 'attr') {
+                resolved.type = resolved.attrType || 'strength';
+                delete resolved.attrType;
+            }
+            return resolved;
+        });
+        this.newItem.rewards = normalizedRewards;
+
+        // Generate description from mixed rewards
+        let parts = normalizedRewards.map(r => {
+            let label = "";
+            const attrMap = { strength: '力量', intelligence: '智力', charm: '魅力', all: '全属性' };
+            if (r.type === 'item' || r.type === 'gacha') {
+                label = `${r.name}x${r.count || 1}`;
+            } else if (r.type === 'coins') {
+                label = `${r.val}金币`;
+            } else if (r.type === 'exp') {
+                label = `${r.val}经验`;
+            } else if (attrMap[r.type]) {
+                label = `${attrMap[r.type]}+${r.val}`;
+            } else {
+                label = `${this.getRewardTypeLabel(r.type)}+${r.val}`;
+            }
+            return `${label}(${r.rate}%)`;
+        });
+        desc = `[盲盒] ${parts.join(', ')}`;
+    } else {
+      let parts = [];
+      if (this.newItem.effectCoins !== 0) parts.push(`金币加成 ${this.newItem.effectCoins}`);
+      if (this.newItem.effectExp !== 0) parts.push(`经验加成 ${this.newItem.effectExp}`);
+      if (this.newItem.effectAttr && this.newItem.effectAttr !== 'none' && this.newItem.effectAttrVal !== 0) {
+          parts.push(`${this.getAttrName(this.newItem.effectAttr)}提升 ${this.newItem.effectAttrVal}`);
+      }
+      if (this.newItem.duration > 0) parts.push(`持续 ${this.newItem.duration}分钟`);
+      desc = parts.join(', ') || '无明显属性加成';
+    }
+
+    let itemToSave = { ...this.newItem, desc };
+    // Clean up temporary fields
+    if (itemToSave.type === 'gacha') {
+        // We only need rewards array
+        delete itemToSave.gachaRewardType;
+        delete itemToSave.gachaRewardVal;
+        delete itemToSave.gachaRate;
+        delete itemToSave.gachaTarget;
+    }
+    
+    this.$emit('save', { item: itemToSave });
+  }
+}
+</script>
+
+<style>
+  .creator-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #000; flex-direction: column; z-index: 100; }
+  
+  .header-section { margin-bottom: 20px; padding-left: 8px; margin-top: 10px; flex-direction: row; justify-content: space-between; align-items: center; }
+  .page-main-title { font-size: 32px; font-weight: bold; color: #fff; }
+
+  .type-selector { 
+    flex-direction: row; 
+    align-items: center;
+  }
+  
+  .type-btn { 
+    padding: 6px 12px; 
+    border-radius: 20px; 
+    background-color: #1C1C1E; 
+    margin-left: 8px;
+    border: 1px solid #2C2C2E;
+    flex-shrink: 0;
+  }
+  
+  .active-type-orange { background-color: rgba(255, 159, 10, 0.15); border-color: rgba(255, 159, 10, 0.3); }
+  .active-type-blue { background-color: rgba(78, 129, 238, 0.15); border-color: rgba(78, 129, 238, 0.3); }
+  .active-type-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
+  .active-type-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
+  
+  .type-txt { font-size: 20px; font-weight: bold; }
+
+  .form-box { flex: 1; flex-direction: column; padding: 16px; }
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+  
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    background-color: transparent;
+    padding: 0 4px;
+  }
+
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+  }
+  
+  .pill-text { 
+      color: #fff; 
+      font-size: 24px; 
+      text-align: center; 
+      font-weight: bold; 
+      lines: 1; 
+      text-overflow: ellipsis; 
+  }
+
+  .editing-text { text-overflow: clip; }
+
+  .pill-gray { background-color: #2C2C2E; }
+  .pill-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .pill-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+  .pill-red { background-color: rgba(255, 69, 58, 0.15); }
+  .pill-gold { background-color: rgba(255, 214, 10, 0.15); }
+
+  /* Theme Colors */
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-red { color: #FF453A; }
+  .c-gold { color: #FFD60A; }
+  .c-gray { color: #8E8E93; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  
+  .small-font { font-size: 20px; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+  
+  .save-section {
+    margin-top: 40px;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .save-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .delete-section {
+    height: 72px;
+    border-radius: 26px;
+    border: 2px solid rgba(255, 69, 58, 0.3);
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 69, 58, 0.1);
+  }
+  .delete-btn-txt { font-size: 28px; color: #FF453A; font-weight: bold; }
+
+  .spacer-lg { height: 80px; }
+  
+  /* Multi-Reward UI */
+  .reward-list { flex-direction: column; }
+  .reward-item-box { flex-direction: column; }
+  
+  .del-slot-btn { 
+    align-self: flex-end; 
+    padding: 6px 16px; 
+    background-color: rgba(255, 69, 58, 0.1); 
+    border-radius: 8px; 
+    margin-bottom: 12px; 
+  }
+  .del-slot-txt { color: #FF453A; font-size: 20px; font-weight: bold; }
+  
+  .add-slot-btn { 
+    background-color: #2C2C2E; 
+    height: 56px; 
+    justify-content: center; 
+    align-items: center; 
+    border-radius: 12px; 
+    margin-top: 8px; 
+  }
+  .add-slot-txt { font-size: 24px; font-weight: bold; }
+  
+  .divider { height: 1px; background-color: #2C2C2E; width: 100%; margin: 16px 0; }
+</style>

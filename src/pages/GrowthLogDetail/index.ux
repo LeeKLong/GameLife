@@ -1,0 +1,157 @@
+<template>
+  <div class="page-container">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+
+      <!-- Hero Section -->
+      <div class="hero-section">
+        <div class="hero-icon-container {{iconBgClass}}">
+          <text class="hero-icon-inner c-white">{{icon}}</text>
+        </div>
+        <text class="hero-title">{{log.title}}</text>
+        <div class="status-tags">
+          <text class="status-tag bg-soft-gray c-gray">{{typeName}}</text>
+          <text class="status-tag bg-soft-gray c-gray">{{fullTime}}</text>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="card-group" if="{{log.desc}}">
+        <text class="group-title">详细说明</text>
+        <div class="detail-card">
+          <div class="info-item vertical">
+            <text class="info-item-desc">{{log.desc}}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Related Stats (Optional, could be expanded) -->
+      <div class="card-group">
+        <text class="group-title">记录信息</text>
+        <div class="detail-card info-list-card">
+          <div class="info-item">
+            <text class="info-item-label">记录ID</text>
+            <text class="info-item-val c-gray">#{{log.timestamp}}</text>
+          </div>
+          <div class="info-divider"></div>
+          <div class="info-item">
+            <text class="info-item-label">记录类型</text>
+            <text class="info-item-val">{{typeName}}</text>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-spacer"></div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+export default {
+  public: {
+    logTimestamp: null,
+    log: {},
+    icon: '记',
+    iconBgClass: 'bg-gray',
+    typeName: '系统记录',
+    fullTime: ''
+  },
+
+  onInit() {
+    this.loadData();
+  },
+
+  onShow() {
+    this.loadData();
+  },
+
+  loadData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (this.logTimestamp) {
+      const logs = user.growthLog || [];
+      const found = logs.find(l => String(l.timestamp) === String(this.logTimestamp));
+      if (found) {
+        this.log = found;
+        this.icon = this.getIcon(found.type);
+        this.iconBgClass = this.getIconBgClass(found.type);
+        this.typeName = this.getTypeName(found.type);
+        this.fullTime = this.formatFullTime(found.timestamp);
+      }
+    }
+  },
+
+  getIcon(type) {
+    const map = { level_up: '升', achievement: '奖', task_complete: '完', sign_in: '签', attribute_up: '属' };
+    return map[type] || '记';
+  },
+
+  getIconBgClass(type) {
+    const map = { level_up: 'bg-gold', achievement: 'bg-purple', task_complete: 'bg-green', sign_in: 'bg-blue', attribute_up: 'bg-red' };
+    return map[type] || 'bg-gray';
+  },
+
+  getTypeName(type) {
+    const map = { level_up: '等级提升', achievement: '达成成就', task_complete: '完成任务', sign_in: '每日签到', attribute_up: '属性提升' };
+    return map[type] || '系统记录';
+  },
+
+  formatFullTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const mo = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    return `${y}-${mo}-${day} ${h}:${m}`;
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 0 20px; }
+
+  .c-white { color: #fff; }
+  .c-gray { color: #8E8E93; }
+
+  .bg-gold { background-color: rgba(255, 214, 10, 0.2); }
+  .bg-purple { background-color: rgba(191, 90, 242, 0.2); }
+  .bg-green { background-color: rgba(163, 250, 0, 0.2); }
+  .bg-blue { background-color: rgba(10, 132, 255, 0.2); }
+  .bg-red { background-color: rgba(255, 59, 48, 0.2); }
+  .bg-gray { background-color: rgba(142, 142, 147, 0.2); }
+  .bg-soft-gray { background-color: rgba(142, 142, 147, 0.12); }
+
+  /* Hero Section */
+  .hero-section {
+    flex-direction: column; align-items: center;
+    padding: 40px 0 30px; margin-bottom: 10px;
+  }
+  .hero-icon-container {
+    width: 90px; height: 90px; border-radius: 30px;
+    justify-content: center; align-items: center; margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .hero-icon-inner { font-size: 44px; font-weight: bold; }
+  .hero-title { font-size: 34px; color: #fff; font-weight: bold; text-align: center; margin-bottom: 16px; padding: 0 10px; }
+  .status-tags { flex-direction: row; justify-content: center; }
+  .status-tag { padding: 4px 14px; border-radius: 12px; margin: 0 6px; font-size: 20px; font-weight: bold; }
+
+  /* Card Grouping */
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; color: #8E8E93; font-weight: bold; margin-bottom: 12px; margin-left: 6px; }
+  .detail-card {
+    background-color: #1C1C1E; border-radius: 20px;
+    padding: 16px; border: 1px solid #2C2C2E; flex-direction: column;
+  }
+
+  /* Info List Card */
+  .info-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 12px 4px; }
+  .vertical { flex-direction: column; align-items: flex-start; }
+  .info-item-label { font-size: 22px; color: #8E8E93; font-weight: bold; }
+  .info-item-val { font-size: 22px; color: #fff; font-weight: bold; lines: 1; text-overflow: ellipsis; max-width: 70%; text-align: right; }
+  .info-item-desc { font-size: 22px; color: #fff; line-height: 34px; margin-top: 6px; }
+  .info-divider { height: 1px; background-color: #2C2C2E; width: 100%; }
+
+  .footer-spacer { height: 60px; }
+</style>

@@ -1,0 +1,94 @@
+<template>
+  <div class="detail-popup-mask" onclick="handleClose">
+     <div class="detail-popup-content" onclick="stopProp">
+        <div class="detail-popup-handle"></div>
+        <text class="detail-popup-title" if="{{title}}">{{title}}</text>
+        
+        <scroll class="detail-scroll" scroll-y="true">
+           <slot></slot>
+        </scroll>
+        
+        <div class="detail-btns-row" if="{{showCancel}}">
+           <div class="detail-btn detail-btn-cancel" onclick="handleClose">
+              <text class="detail-btn-txt c-gray" static>取消</text>
+           </div>
+           <div class="detail-btn {{'bg-'+themeColor}}" onclick="handleConfirm">
+              <text class="detail-btn-txt c-white">{{confirmText}}</text>
+           </div>
+        </div>
+        
+        <div class="detail-close-btn {{'bg-'+themeColor}}" onclick="handleClose" else>
+           <text class="close-btn-txt c-white">{{confirmText || '我知道了'}}</text>
+        </div>
+     </div>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+
+export default {
+  props: {
+      title: { type: String, default: '' },
+      themeColor: { type: String, default: 'orange' },
+      showCancel: { type: Boolean, default: false },
+      confirmText: { type: String, default: '' }
+  },
+  
+  vibrate() {
+    if (this.$app && this.$app.$def && this.$app.$def.globalData && this.$app.$def.globalData.userInfo) {
+        if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+            vibrator.vibrate({ mode: 'short' });
+        }
+    } else {
+        vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  handleClose() {
+    this.vibrate();
+    this.$emit('close');
+  },
+
+  handleConfirm() {
+    this.vibrate();
+    this.$emit('confirm');
+  },
+
+  stopProp() {}
+}
+</script>
+
+<style>
+  .detail-popup-mask {
+     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+     background-color: rgba(0,0,0,0.6);
+     justify-content: center; align-items: flex-end;
+  }
+  .detail-popup-content {
+     width: 100%; background-color: #1C1C1E;
+     border-top-left-radius: 24px; border-top-right-radius: 24px;
+     padding: 24px; flex-direction: column;
+     border-top: 1px solid #2C2C2E; align-items: center;
+  }
+  .detail-popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  .detail-popup-title { font-size: 28px; color: #fff; margin-bottom: 16px; font-weight: bold; }
+  
+  .detail-scroll { width: 100%; height: 400px; margin-bottom: 24px; flex-direction: column; }
+  
+  .detail-btns-row { flex-direction: row; width: 100%; justify-content: space-between; }
+  .detail-btn { flex: 1; height: 80px; border-radius: 20px; justify-content: center; align-items: center; margin: 0 8px; }
+  .detail-btn-cancel { background-color: #2C2C2E; }
+  .detail-btn-txt { font-size: 28px; font-weight: bold; }
+  
+  .detail-close-btn { width: 100%; height: 80px; border-radius: 20px; justify-content: center; align-items: center; margin-bottom: 12px; }
+  .close-btn-txt { font-size: 28px; font-weight: bold; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #0A84FF; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  .c-gray { color: #8E8E93; }
+  .c-white { color: #FFFFFF; }
+</style>

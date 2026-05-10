@@ -1,0 +1,1080 @@
+<script>
+import storage from '@system.storage';
+import prompt from '@system.prompt';
+import vibrator from '@system.vibrator';
+
+// 常量定义
+const MAX_LOG_SIZE = 500;
+const BUFF_CHECK_INTERVAL = 1000; // 1秒
+const DEADLINE_CHECK_INTERVAL = 60000; // 60秒
+const MAX_ATTRIBUTE_HISTORY_DAYS = 30;
+
+export default {
+    // 全局数据
+    globalData: {
+    dataReadyCallback: null, // 新增：数据加载完成的回调
+    isDataLoaded: false,     // 新增：标记数据是否已加载
+    buffTimer: null,         // 全局Buff检查定时器（1s）
+    deadlineTimer: null,     // 任务期限检查定时器（60s）
+    tomatoTimer: {           // 新增：全局番茄钟状态
+      status: 'idle',        // idle, running, paused, resting, finished
+      pausedFrom: null,      // 新增：记录暂停前的状态
+      remainingTime: 1500,
+      totalTime: 1500,
+      durationMinutes: 25,
+      restMinutes: 5,        // 新增：休息时长
+      linkedTaskId: null,    // 新增：关联的任务 ID
+      intervalId: null
+    },
+    
+    userInfo: {
+      level: 1,
+      currentExp: 0,
+      nextLevelExp: 100,
+      coins: 0,
+      tomatoCount: 0, // 新增：独立存储番茄数量
+      attributes: { strength: 0, intelligence: 0, charm: 0 },
+      inventory: [], 
+      customAttributes: [], // 新增：自定义属性列表 [{name: '读书', value: 0, color: 'blue', icon: '书'}]
+      exchangedSteps: 0,
+      lastLoginDate: new Date().toDateString(),
+      firstUseDate: null, // 新增：首次使用日期
+      totalSignInDays: 0, // 新增：累计签到天数
+      growthLog: [], // 新增：成长日志
+      todoList: [
+        {
+          id: 1,
+          title: '欢迎来到 GameLife',
+          importance: '普通',
+          rewardExp: 50,
+          rewardCoins: 100,
+          goldMode: 'fixed',
+          frequency: '单次',
+          deadline: '不限',
+          completed: false,
+          attrType: 'charm',
+          attrVal: 1,
+          rewardItem: '无'
+        }
+      ],
+      activeBuffs: [], // 新增：正在生效的倒计时/Buff
+      hasShownShopManageTip: false, // 新增：商店管理长按提示
+      hasShownTodoManageTip: false, // 新增：委托管理长按提示
+      
+      // 用户设置
+      settings: {
+        enableHaptics: true,
+        enableAchievementRewards: true, // 新增：成就奖励开关
+        deletePenalty: true,
+        showDateCard: true,
+        themeColor: 'blue',
+        fontSizeScale: 1.0,
+        rememberLastConfig: false,
+        tomatoRewards: { exp: 15, coins: 10, item: '番茄' },
+        bankSettings: {
+          maxLoanAmount: 1000,      // 可贷款金额上限
+          loanDailyRate: 1,         // 贷款日利率 (%)
+          depositDailyRate: 0.5,    // 存款日利率 (%)
+          refundDiscount: 50        // 退货折扣 (%)
+        },
+        penaltySettings: {
+          enableCustomPenalty: true,
+          expPenaltyRatio: 1.0,
+          coinPenaltyRatio: 1.0
+        },
+        tomatoSettings: {
+          autoStartRest: false,
+          autoStartFocus: false,
+          sellPrice: 10,
+          eatExp: 10,
+          exchangeItems: []
+        }
+      },
+      
+
+      // 新增：成就系统字段
+      totalCoins: 0,
+      completedTaskCount: 0,
+      unlockedAchievements: [],
+      customAchievements: [], // 新增：自定义成就列表
+      failCount: 0, // 新增：累计失败次数
+      hasBeenInDebt: false, // 新增：是否曾经欠债
+      attributeHistory: [], // 新增：属性历史记录 [{date: 'MM-DD', strength: 10, intelligence: 5, charm: 2}]
+      shopPurchaseCount: 0, // 新增：购买商品总次数
+      shopSpentCoins: 0, // 新增：累计消费金币
+      dailyTaskCount: 0, // 新增：完成每日委托数
+      weeklyTaskCount: 0, // 新增：完成每周委托数
+      urgentTaskCount: 0, // 新增：完成紧急委托数
+      normalTaskCount: 0, // 新增：完成普通委托数
+      lastTaskCompletionDate: null, // 新增：最后完成委托日期
+      consecutiveTaskDays: 0, // 新增：连续完成委托天数
+      lastSignInDate: null, // 新增：最后签到日期
+      consecutiveSignInDays: 0, // 新增：连续签到天数
+
+      purchasedItemsMap: {}, // 新增：购买商品记录 { itemName: count }
+      usedItemsMap: {},      // 新增：使用商品记录 { itemName: count }
+      gachaGotItemsMap: {},  // 新增：开盲盒获得物品记录 { itemName: count }
+      focusedTaskDurationMap: {}, // 新增：专注任务时长记录 { taskId: totalMinutes }
+
+      // 货架列表迁移至全局
+      shopItems: [
+        { name: '能量饮料', desc: '获得20点经验', price: 20, type: 'prop', effectExp: 20, effectCoins: 0 },
+        { name: '欧皇礼包', desc: '5%概率获得全属性+5', price: 50, type: 'gacha', gachaTarget: '全属性+5', gachaRate: 5 }
+      ]
+    },
+    
+    // 成就定义
+    achievements: [
+      { id: 'signin_7', title: '坚持不懈 I', desc: '累计签到 7 天', type: 'signin', target: 7 },
+      { id: 'signin_30', title: '坚持不懈 II', desc: '累计签到 30 天', type: 'signin', target: 30 },
+      { id: 'signin_100', title: '坚持不懈 III', desc: '累计签到 100 天', type: 'signin', target: 100 },
+      
+      { id: 'level_2', title: '初出茅庐 I', desc: '达到等级 2', type: 'level', target: 2 },
+      { id: 'level_5', title: '初出茅庐 II', desc: '达到等级 5', type: 'level', target: 5 },
+      { id: 'level_10', title: '初出茅庐 III', desc: '达到等级 10', type: 'level', target: 10 },
+      { id: 'level_20', title: '初出茅庐 IV', desc: '达到等级 20', type: 'level', target: 20 },
+      { id: 'level_30', title: '初出茅庐 V', desc: '达到等级 30', type: 'level', target: 30 },
+      
+      { id: 'coins_100', title: '第一桶金 I', desc: '累计获得 100 金币', type: 'coins', target: 100 },
+      { id: 'coins_1000', title: '第一桶金 II', desc: '累计获得 1000 金币', type: 'coins', target: 1000 },
+      { id: 'coins_5000', title: '第一桶金 III', desc: '累计获得 5000 金币', type: 'coins', target: 5000 },
+      { id: 'coins_10000', title: '第一桶金 IV', desc: '累计获得 10000 金币', type: 'coins', target: 10000 },
+      
+      { id: 'task_1', title: '行动派 I', desc: '完成 1 个任务', type: 'task', target: 1 },
+      { id: 'task_10', title: '行动派 II', desc: '完成 10 个任务', type: 'task', target: 10 },
+      { id: 'task_50', title: '行动派 III', desc: '完成 50 个任务', type: 'task', target: 50 },
+      { id: 'task_100', title: '行动派 IV', desc: '完成 100 个任务', type: 'task', target: 100 },
+      { id: 'task_500', title: '行动派 V', desc: '完成 500 个任务', type: 'task', target: 500 },
+      
+      { id: 'attr_str_5', title: '大力士 I', desc: '力量达到 5 点', type: 'strength', target: 5 },
+      { id: 'attr_str_10', title: '大力士 II', desc: '力量达到 10 点', type: 'strength', target: 10 },
+      { id: 'attr_str_20', title: '大力士 III', desc: '力量达到 20 点', type: 'strength', target: 20 },
+      
+      { id: 'attr_int_5', title: '智多星 I', desc: '智力达到 5 点', type: 'intelligence', target: 5 },
+      { id: 'attr_int_10', title: '智多星 II', desc: '智力达到 10 点', type: 'intelligence', target: 10 },
+      { id: 'attr_int_20', title: '智多星 III', desc: '智力达到 20 点', type: 'intelligence', target: 20 },
+      
+      { id: 'attr_cha_5', title: '万人迷 I', desc: '魅力达到 5 点', type: 'charm', target: 5 },
+      { id: 'attr_cha_10', title: '万人迷 II', desc: '魅力达到 10 点', type: 'charm', target: 10 },
+      { id: 'attr_cha_20', title: '万人迷 III', desc: '魅力达到 20 点', type: 'charm', target: 20 },
+      
+      { id: 'debt_free', title: '无债一身轻', desc: '还清所有债务', type: 'debt_free', target: 1 }
+    ]
+  },
+
+  onCreate() {
+    this.loadUserData();
+    this.startBuffChecker();
+  },
+  
+  onDestroy() {
+    if (this.globalData.buffTimer) {
+      clearInterval(this.globalData.buffTimer);
+    }
+    if (this.globalData.deadlineTimer) {
+      clearInterval(this.globalData.deadlineTimer);
+    }
+    this.stopTomatoTimer();
+  },
+
+  stopTomatoTimer() {
+    if (this.globalData.tomatoTimer.intervalId) {
+      clearInterval(this.globalData.tomatoTimer.intervalId);
+      this.globalData.tomatoTimer.intervalId = null;
+    }
+  },
+
+  startTomatoTimer(minutes, linkedTaskId = null) {
+    const timer = this.globalData.tomatoTimer;
+    if (minutes && timer.status === 'idle') {
+      timer.durationMinutes = minutes;
+      timer.totalTime = minutes * 60;
+      timer.remainingTime = timer.totalTime;
+      timer.linkedTaskId = linkedTaskId;
+    }
+    
+    if (timer.status === 'idle') {
+      timer.status = 'running';
+    } else if (timer.status === 'paused') {
+      // 从暂停恢复，根据记录恢复正确状态
+      timer.status = timer.pausedFrom || 'running';
+      timer.pausedFrom = null;
+    } else if (timer.status === 'resting') {
+      // 已经在休息状态，保持不变
+    }
+    
+    this.stopTomatoTimer();
+    
+    timer.intervalId = setInterval(() => {
+      if (timer.remainingTime > 0) {
+        timer.remainingTime--;
+      } else {
+        this.finishTomatoTimer();
+      }
+    }, 1000);
+  },
+
+  pauseTomatoTimer() {
+    const timer = this.globalData.tomatoTimer;
+    // 暂停前记录当前状态 (running 或 resting)
+    timer.pausedFrom = timer.status;
+    timer.status = 'paused';
+    this.stopTomatoTimer();
+  },
+
+  resetTomatoTimer() {
+    const timer = this.globalData.tomatoTimer;
+    timer.status = 'idle';
+    timer.linkedTaskId = null;
+    this.stopTomatoTimer();
+    timer.remainingTime = timer.durationMinutes * 60;
+    timer.totalTime = timer.remainingTime;
+  },
+
+  finishTomatoTimer() {
+    const timer = this.globalData.tomatoTimer;
+    const settings = this.globalData.userInfo.settings.tomatoSettings || {};
+
+    if (timer.status === 'running') {
+      this.onFocusComplete();
+      
+      if (timer.restMinutes > 0) {
+        timer.totalTime = timer.restMinutes * 60;
+        timer.remainingTime = timer.totalTime;
+        
+        if (settings.autoStartRest) {
+          timer.status = 'resting';
+          this.startTomatoTimer();
+        } else {
+          timer.status = 'waiting_rest';
+          this.stopTomatoTimer();
+        }
+      } else {
+        this.onTimerComplete();
+      }
+    } else if (timer.status === 'resting') {
+      this.onRestComplete();
+      
+      if (settings.autoStartFocus) {
+        timer.status = 'running';
+        timer.totalTime = timer.durationMinutes * 60;
+        timer.remainingTime = timer.totalTime;
+        this.startTomatoTimer();
+      } else {
+        this.onTimerComplete();
+      }
+    }
+  },
+
+  onFocusComplete() {
+    const timer = this.globalData.tomatoTimer;
+    const userInfo = this.globalData.userInfo;
+    
+    const today = new Date().toDateString();
+
+    // 记录专注时长 (分钟)
+    if (timer.linkedTaskId) {
+      if (!userInfo.focusedTaskDurationMap) userInfo.focusedTaskDurationMap = {};
+      const currentDuration = userInfo.focusedTaskDurationMap[timer.linkedTaskId] || 0;
+      userInfo.focusedTaskDurationMap[timer.linkedTaskId] = currentDuration + (parseInt(timer.durationMinutes) || 0);
+    }
+    
+    // 增加番茄数 (今日统计)
+    if (userInfo.tomatoStats && userInfo.tomatoStats.date === today) {
+      userInfo.tomatoStats.count++;
+    } else {
+      userInfo.tomatoStats = { date: today, count: 1 };
+    }
+
+    // 增加番茄总数 (独立存储)
+    userInfo.tomatoCount = (userInfo.tomatoCount || 0) + 1;
+    
+    let linkedTaskInfo = '';
+    // 处理关联任务进度
+    if (timer.linkedTaskId) {
+        const task = (userInfo.todoList || []).find(t => t.id === timer.linkedTaskId);
+        if (task && !task.completed) {
+            if (task.taskType === 'count') {
+                task.currentCount = (task.currentCount || 0) + 1;
+                if (task.currentCount >= task.targetCount) {
+                    this.completeTask(task);
+                    linkedTaskInfo = ` (委托"${task.title}"已达成)`;
+                } else {
+                    linkedTaskInfo = ` (委托"${task.title}"进度+1)`;
+                }
+            } else {
+                // 普通任务或计时任务直接完成
+                this.completeTask(task);
+                linkedTaskInfo = ` (委托"${task.title}"已完成)`;
+            }
+        }
+    }
+
+    this.addGrowthLog('tomato', '专注完成', `完成一次 ${timer.durationMinutes} 分钟专注${linkedTaskInfo}`);
+    this.saveUserData();
+    
+    vibrator.vibrate({ mode: 'long' });
+    prompt.showToast({ 
+      message: '专注完成！获得：番茄 x1' + (linkedTaskInfo || '')
+    });
+  },
+
+  // 辅助方法：完成任务并分发奖励
+  completeTask(task) {
+    if (!task || task.completed) return;
+
+    const user = this.globalData.userInfo;
+    let baseCoins = parseInt(task.rewardCoins) || 0;
+    let baseExp = parseInt(task.rewardExp) || 0;
+
+    // 处理连击倍率
+    if (task.frequency !== '单次') {
+        task.combo = (task.combo || 0) + 1;
+        const multiplier = 1 + (task.combo - 1) * ((parseInt(task.comboMultiplier) || 0) / 100);
+        baseCoins = Math.floor(baseCoins * multiplier);
+        baseExp = Math.floor(baseExp * multiplier);
+    }
+
+    let finalCoins = baseCoins;
+    if (task.goldMode === 'random') {
+      const factor = 0.5 + Math.random();
+      finalCoins = Math.floor(finalCoins * factor);
+    }
+    
+    user.completedTaskCount = (user.completedTaskCount || 0) + 1;
+
+    this.addCoins(finalCoins, false);
+    
+    if (task.attrType && task.attrVal) {
+        const val = parseInt(task.attrVal);
+        if (!isNaN(val)) {
+            const baseAttrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+            if (baseAttrNames[task.attrType]) {
+                user.attributes[task.attrType] += val;
+                this.addGrowthLog('attribute_up', '属性提升', `${baseAttrNames[task.attrType]} +${val}`, false);
+                this.logAttributeChange();
+            } else {
+                const customAttr = (user.customAttributes || []).find(a => a.name === task.attrType);
+                if (customAttr) {
+                    customAttr.value = (customAttr.value || 0) + val;
+                    this.addGrowthLog('attribute_up', '属性提升', `${customAttr.name} +${val}`, false);
+                }
+            }
+        }
+    }
+    
+    this.gainExp(baseExp, false);
+    this.checkAchievements();
+    
+    const comboInfo = (task.combo > 1) ? ` (连击 x${task.combo})` : '';
+    this.addGrowthLog('task_complete', '完成任务', `${task.title}${comboInfo} (Exp +${baseExp}, 币 +${finalCoins})`, false);
+    
+    if (task.rewardItem && task.rewardItem !== '无') {
+        this.addToInventory(task.rewardItem, 1);
+    }
+    
+    task.completed = true;
+    task.completedDate = new Date().toDateString();
+  },
+
+  onRestComplete() {
+    vibrator.vibrate({ mode: 'long' });
+    setTimeout(() => {
+      vibrator.vibrate({ mode: 'long' });
+    }, 1000);
+    prompt.showToast({ message: '休息结束！' });
+  },
+
+  onTimerComplete() {
+    this.stopTomatoTimer();
+    const timer = this.globalData.tomatoTimer;
+    timer.status = 'finished';
+    timer.remainingTime = 0;
+  },
+
+  startBuffChecker() {
+    // 任务期限只需分钟级检查，降低 CPU 开销
+    this.globalData.deadlineTimer = setInterval(() => {
+       this.checkTaskDeadlines();
+    }, DEADLINE_CHECK_INTERVAL);
+    
+    // Buff 定时器按需启动
+    this.startBuffTimerIfNeeded();
+  },
+  
+  startBuffTimerIfNeeded() {
+    const user = this.globalData.userInfo;
+    const hasActiveBuffs = user.activeBuffs && user.activeBuffs.length > 0;
+    
+    if (hasActiveBuffs && !this.globalData.buffTimer) {
+      // 有 Buff 且定时器未运行，启动定时器
+      this.globalData.buffTimer = setInterval(() => {
+        this.checkBuffs();
+      }, BUFF_CHECK_INTERVAL);
+    } else if (!hasActiveBuffs && this.globalData.buffTimer) {
+      // 没有 Buff 且定时器在运行，停止定时器
+      clearInterval(this.globalData.buffTimer);
+      this.globalData.buffTimer = null;
+    }
+  },
+
+  checkBuffs() {
+    const user = this.globalData.userInfo;
+    if (!user.activeBuffs || user.activeBuffs.length === 0) return;
+
+    const now = Date.now();
+    const expired = [];
+    const active = [];
+
+    user.activeBuffs.forEach(buff => {
+      if (buff.endTime <= now) {
+        expired.push(buff);
+      } else {
+        active.push(buff);
+      }
+    });
+
+    if (expired.length > 0) {
+      // 震动提醒
+      if (!user.settings || user.settings.enableHaptics !== false) {
+         // 强力震动：连续震动两次
+         vibrator.vibrate({ mode: 'long' });
+         setTimeout(() => {
+            vibrator.vibrate({ mode: 'long' });
+         }, 600);
+      }
+      
+      expired.forEach(b => {
+         prompt.showToast({ message: `${b.name} 倒计时结束` });
+      });
+
+      user.activeBuffs = active;
+      this.saveUserData();
+      
+      // 如果所有 Buff 都过期了，停止定时器
+      this.startBuffTimerIfNeeded();
+    }
+  },
+
+  // 新增：检查任务期限，过期自动扣币
+  checkTaskDeadlines() {
+    const user = this.globalData.userInfo;
+    const todoList = user.todoList || [];
+    // 快速退出：没有任务直接返回
+    if (todoList.length === 0) return;
+    
+    const now = Date.now();
+    let changed = false;
+    
+    const pSettings = (user.settings && user.settings.penaltySettings) || {
+      enableCustomPenalty: true,
+      expPenaltyRatio: 1.0,
+      coinPenaltyRatio: 1.0
+    };
+
+    todoList.forEach(task => {
+      if (task.completed) return;
+      if (!task.deadlineTimestamp) return; // 没有时间戳的任务跳过
+      if (task.penaltyApplied) return; // 已处理过的跳过
+      
+      if (task.deadlineTimestamp <= now) {
+        // 标记已应用惩罚
+        task.penaltyApplied = true;
+        user.failCount = (user.failCount || 0) + 1;
+        changed = true;
+
+        // 计算惩罚值
+        // 1. 金币惩罚
+        let coinPunishment = 0;
+        if (pSettings.enableCustomPenalty) {
+          coinPunishment = Math.floor((parseInt(task.punishment) || 0) * (pSettings.coinPenaltyRatio || 1.0));
+        } else {
+          coinPunishment = Math.floor((parseInt(task.rewardCoins) || 0) * (pSettings.coinPenaltyRatio || 1.0));
+        }
+
+        // 2. 经验惩罚
+        let expPunishment = Math.floor((parseInt(task.rewardExp) || 0) * (pSettings.expPenaltyRatio || 1.0));
+
+        // 应用惩罚
+        if (coinPunishment > 0) {
+          if (typeof user.coins !== 'number' || isNaN(user.coins)) user.coins = 0;
+          const oldCoins = user.coins;
+          user.coins -= coinPunishment;
+          if (oldCoins >= 0 && user.coins < 0) {
+            user.hasBeenInDebt = true;
+          }
+        }
+
+        if (expPunishment > 0) {
+          user.currentExp -= expPunishment;
+          if (user.currentExp < 0) user.currentExp = 0;
+        }
+
+        // 记录日志
+        if (coinPunishment > 0 || expPunishment > 0) {
+          let desc = `任务"${task.title}"过期。`;
+          if (coinPunishment > 0) desc += `扣除${coinPunishment}金币。`;
+          if (expPunishment > 0) desc += `扣除${expPunishment}经验。`;
+
+          if (!user.growthLog) user.growthLog = [];
+          if (user.growthLog.length >= MAX_LOG_SIZE) user.growthLog.pop();
+          user.growthLog.unshift({
+            id: Date.now(),
+            type: 'deadline_penalty',
+            title: '期限惩罚',
+            desc: desc,
+            timestamp: Date.now()
+          });
+        }
+      }
+    });
+    
+    if (changed) {
+      // 统一保存一次，避免多次 IO
+      this.checkAchievements();
+      this.saveUserData();
+    }
+  },
+
+  // === 关键修复：数据就绪监听 ===
+  onDataReady(callback) {
+    if (this.globalData.isDataLoaded) {
+      // 如果数据已经好了，直接执行
+      callback && callback();
+    } else {
+      // 否则存起来，等加载完了执行
+      this.globalData.dataReadyCallback = callback;
+    }
+  },
+
+    loadUserData() {
+    const that = this;
+    storage.get({
+      key: 'lifeup_v3',
+      success: function(data) {
+        if (data) {
+          try {
+            const localData = JSON.parse(data);
+            that.globalData.userInfo = Object.assign({}, that.globalData.userInfo, localData);
+            // 单独加载 growthLog
+            storage.get({
+              key: 'lifeup_log',
+              success: function(logData) {
+                if (logData) {
+                  try { that.globalData.userInfo.growthLog = JSON.parse(logData); } catch(e) {}
+                }
+              },
+              fail: function() {},
+              complete: function() {
+                // growthLog 加载完成后再初始化属性历史，避免 saveUserData 覆盖日志
+                that.initAttributeHistory();
+              }
+            });
+            
+            // 数据清洗：修复可能的 NaN/null 值
+            const u = that.globalData.userInfo;
+            if (typeof u.coins !== 'number' || isNaN(u.coins)) u.coins = 0;
+            if (typeof u.currentExp !== 'number' || isNaN(u.currentExp)) u.currentExp = 0;
+            if (typeof u.nextLevelExp !== 'number' || isNaN(u.nextLevelExp) || u.nextLevelExp <= 0) u.nextLevelExp = 100;
+            
+            // 初始化首次使用日期
+            if (!that.globalData.userInfo.firstUseDate) {
+              that.globalData.userInfo.firstUseDate = Date.now();
+            }
+
+            // 数据迁移：将库存中的番茄移至独立存储
+            const inv = that.globalData.userInfo.inventory || [];
+            const tIdx = inv.findIndex(i => i.name === '番茄');
+            if (tIdx > -1) {
+                const count = inv[tIdx].count || 0;
+                that.globalData.userInfo.tomatoCount = (that.globalData.userInfo.tomatoCount || 0) + count;
+                inv.splice(tIdx, 1);
+            }
+            
+            // 跨天重置逻辑 (使用 toDateString 避开每月1号的逻辑陷阱)
+            const today = new Date().toDateString();
+            if (that.globalData.userInfo.lastLoginDate !== today) {
+              that.processDailyBankInterest();
+              that.globalData.userInfo.exchangedSteps = 0;
+              that.globalData.userInfo.lastLoginDate = today;
+              that.saveUserData();
+            }
+            
+            // 初始化任务期限时间戳（兼容旧数据）
+            that.initTaskDeadlineTimestamps();
+            
+            // 初始化属性历史记录（等 growthLog 加载完再做，避免覆盖日志）
+          } catch (e) {
+            console.error('Data parse error', e);
+          }
+        }
+        // 标记加载完成，并通知页面
+        that.globalData.isDataLoaded = true;
+        if (that.globalData.dataReadyCallback) {
+          that.globalData.dataReadyCallback();
+        }
+      },
+      fail: function() {
+        // 即使读取失败（比如第一次运行），也要标记完成，否则页面会一直等
+        that.globalData.isDataLoaded = true;
+        if (that.globalData.dataReadyCallback) {
+          that.globalData.dataReadyCallback();
+        }
+      }
+    });
+  },
+
+  saveUserData() {
+    // 拆分存储：growthLog 单独存，避免主数据包过大
+    const user = this.globalData.userInfo;
+    const log = user.growthLog;
+    user.growthLog = [];
+    storage.set({ key: 'lifeup_v3', value: JSON.stringify(user) });
+    storage.set({ key: 'lifeup_log', value: JSON.stringify(log) });
+    user.growthLog = log;
+  },
+
+  // === 逻辑增强：经验获取与自动升级 ===
+  // save=false 时由调用方统一保存，避免批量操作时多次 IO
+  gainExp(amount, save = true) {
+    const user = this.globalData.userInfo;
+    let finalAmount = parseInt(amount);
+    if (isNaN(finalAmount)) finalAmount = 0;
+    
+    // 检查是否有经验加成 Buff (简单示例：双倍经验)
+    const doubleExpBuff = (user.activeBuffs || []).find(b => b.type === 'doubleExp' && b.endTime > Date.now());
+    if (doubleExpBuff) {
+      finalAmount *= 2;
+    }
+
+    user.currentExp += finalAmount;
+    const newLevel = this.checkLevelUp(save);
+    if (save) this.saveUserData();
+    return newLevel;
+  },
+
+  // 新增：金币增加 helper，用于追踪累计金币
+  // save=false 时由调用方统一保存，避免批量操作时多次 IO
+  addCoins(amount, save = true) {
+    const user = this.globalData.userInfo;
+    let val = parseInt(amount);
+    if (isNaN(val)) val = 0;
+    
+    // 确保 coins 是数字
+    if (typeof user.coins !== 'number' || isNaN(user.coins)) user.coins = 0;
+
+    const oldCoins = user.coins;
+    if (val > 0) {
+      user.coins += val;
+      let total = user.totalCoins || 0;
+      if (isNaN(total)) total = 0;
+      user.totalCoins = total + val;
+    } else {
+      user.coins += val; 
+      // 如果扣币导致金币变为负数，标记曾经欠债
+      if (oldCoins >= 0 && user.coins < 0) {
+        user.hasBeenInDebt = true;
+      }
+    }
+    if (save) {
+      this.saveUserData();
+      this.checkAchievements();
+    }
+  },
+
+  // 新增：添加物品到仓库的全局方法
+  // 从 shopItems 中查找完整定义，确保效果属性完整
+  addToInventory(itemNameOrObj, count = 1) {
+    const user = this.globalData.userInfo;
+    if (!user.inventory) user.inventory = [];
+    
+    let itemToAdd;
+    if (typeof itemNameOrObj === 'string') {
+      // 如果传入的是物品名称，从 shopItems 中查找完整定义
+      const shopItem = user.shopItems.find(s => s.name === itemNameOrObj);
+      if (shopItem) {
+        itemToAdd = { ...shopItem };
+      } else {
+        // 找不到定义，创建基本物品
+        itemToAdd = { name: itemNameOrObj, type: 'prop', desc: '委托奖励' };
+      }
+    } else {
+      // 如果传入的是物品对象，直接使用
+      itemToAdd = { ...itemNameOrObj };
+    }
+    
+    // 查找仓库中是否已有同名物品
+    const existing = user.inventory.find(i => i.name === itemToAdd.name);
+    if (existing) {
+      existing.count = (existing.count || 0) + count;
+    } else {
+      user.inventory.push({ ...itemToAdd, count: count });
+    }
+  },
+
+  // 新增：检查成就
+  checkAchievements() {
+    const user = this.globalData.userInfo;
+    const all = this.globalData.achievements;
+    const unlocked = user.unlockedAchievements || [];
+    const newUnlocks = [];
+
+    // 确保字段存在
+    user.unlockedAchievements = unlocked;
+    user.totalCoins = user.totalCoins || user.coins; // 兼容旧数据
+    user.completedTaskCount = user.completedTaskCount || 0;
+    user.hasBeenInDebt = user.hasBeenInDebt || false;
+
+    // 核心变更：系统成就现在不再自动解锁，仅返回达标列表供 UI 渲染“领取”按钮
+    const readyToClaimSystem = [];
+    all.forEach(a => {
+      if (unlocked.includes(a.id)) return;
+      
+      let current = 0;
+      let conditionMet = false;
+      if (a.type === 'level') current = user.level;
+      else if (a.type === 'coins') current = user.totalCoins;
+      else if (a.type === 'task') current = user.completedTaskCount;
+      else if (a.type === 'signin') current = user.totalSignInDays || 0; 
+      else if (a.type === 'strength') current = user.attributes.strength;
+      else if (a.type === 'intelligence') current = user.attributes.intelligence;
+      else if (a.type === 'charm') current = user.attributes.charm;
+      else if (a.type === 'debt_free') {
+        conditionMet = user.hasBeenInDebt && user.coins >= 0;
+      }
+      
+      if (conditionMet || (current >= a.target && a.type !== 'debt_free')) {
+        readyToClaimSystem.push(a);
+      }
+    });
+
+    // 检查自定义成就（自动进度更新，但不自动完成）
+    const customAchievements = user.customAchievements || [];
+    const readyToClaimCustom = [];
+    
+    customAchievements.forEach(custom => {
+      if (custom.isCompleted) return;
+      
+      let current = custom.currentProgress || 0;
+      const cond = custom.condition;
+
+      // 1. 基于全局统计的自动触发条件
+      if (cond === 'none') {
+          // 无条件，不自动更新进度
+      }
+      else if (cond === 'task_count') {
+        if (custom.linkedTaskId) {
+            // 如果关联了特定委托，进度是该委托的 currentCount (对于计数委托)
+            const linkedTask = (user.todoList || []).find(t => t.id === custom.linkedTaskId);
+            if (linkedTask) {
+                current = (linkedTask.taskType === 'count') ? (linkedTask.currentCount || 0) : (linkedTask.completed ? 1 : 0);
+            }
+        } else {
+            current = user.completedTaskCount || 0;
+        }
+      }
+      else if (cond === 'consecutive_task_days') {
+        if (custom.linkedTaskId) {
+            // 如果关联了特定委托，进度是该委托的连击数 (Combo)
+            const linkedTask = (user.todoList || []).find(t => t.id === custom.linkedTaskId);
+            current = (linkedTask) ? (linkedTask.combo || 0) : 0;
+        } else {
+            current = user.consecutiveTaskDays || 0;
+        }
+      }
+      else if (cond === 'attr_reached') {
+        const attrName = custom.linkedAttr || 'strength';
+        if (user.attributes[attrName] !== undefined) {
+            current = user.attributes[attrName];
+        } else {
+            const customAttr = (user.customAttributes || []).find(a => a.name === attrName);
+            current = customAttr ? (customAttr.value || 0) : 0;
+        }
+      }
+      else if (cond === 'tomato_count') current = user.tomatoCount || 0;
+      else if (cond === 'use_days') {
+        if (user.firstUseDate) {
+          current = Math.floor((Date.now() - user.firstUseDate) / (1000 * 60 * 60 * 24)) + 1;
+        }
+      }
+      else if (cond === 'shop_buy_count') {
+        if (custom.linkedItemId) {
+          current = (user.purchasedItemsMap || {})[custom.linkedItemId] || 0;
+        } else {
+          current = user.shopPurchaseCount || 0;
+        }
+      }
+      else if (cond === 'item_use_count') {
+        if (custom.linkedItemId) {
+          current = (user.usedItemsMap || {})[custom.linkedItemId] || 0;
+        } else {
+          // 如果没关联特定物品，计算总的使用次数
+          current = Object.values(user.usedItemsMap || {}).reduce((a, b) => a + b, 0);
+        }
+      }
+      else if (cond === 'gacha_count') {
+        if (custom.linkedItemId) {
+          current = (user.gachaGotItemsMap || {})[custom.linkedItemId] || 0;
+        }
+      }
+      else if (cond === 'focus_duration') {
+        if (custom.linkedTaskId) {
+          current = (user.focusedTaskDurationMap || {})[custom.linkedTaskId] || 0;
+        }
+      }
+      else if (cond === 'bank_balance') {
+        current = user.coins || 0;
+      }
+      
+      // 2. 更新进度
+      custom.currentProgress = current;
+
+      // 3. 检查是否达标（但不自动发放奖励和标记完成，仅标记可领取状态）
+      if (custom.currentProgress >= custom.target) {
+        readyToClaimCustom.push(custom);
+      }
+    });
+    
+    // 如果有新达标的成就，可以弹个弱提示或振动
+    if (readyToClaimSystem.length > 0 || readyToClaimCustom.length > 0) {
+        // 这里暂时不自动弹窗，交由 UI 逻辑显示领取状态
+    }
+    
+    return readyToClaimSystem.concat(readyToClaimCustom);
+  },
+
+  // 新增：启动一个 Buff/倒计时
+  startBuff(buff) {
+    const user = this.globalData.userInfo;
+    if (!user.activeBuffs) user.activeBuffs = [];
+    
+    // 寻找同类型 Buff
+    const existing = user.activeBuffs.find(b => b.name === buff.name);
+    const duration = parseInt(buff.duration) * 60 * 1000; // 分钟转毫秒
+    
+    if (existing && existing.endTime > Date.now()) {
+      // 效果叠加：延长持续时间
+      existing.endTime += duration;
+    } else {
+      user.activeBuffs.push({
+        name: buff.name,
+        type: buff.buffType || 'normal',
+        endTime: Date.now() + duration
+      });
+    }
+    this.saveUserData();
+    
+    // 启动 Buff 定时器（如果尚未运行）
+    this.startBuffTimerIfNeeded();
+  },
+
+  // 新增：记录成长日志
+  // save=false 时由调用方统一保存，避免多次 IO
+  addGrowthLog(type, title, desc = '', save = true) {
+    const user = this.globalData.userInfo;
+    if (!user.growthLog) user.growthLog = [];
+    
+    // 限制日志数量
+    if (user.growthLog.length >= MAX_LOG_SIZE) {
+        user.growthLog.pop();
+    }
+    
+    user.growthLog.unshift({
+        id: Date.now(),
+        type: type,
+        title: title,
+        desc: desc,
+        timestamp: Date.now()
+    });
+    if (save) this.saveUserData();
+  },
+  
+  // 新增：初始化任务期限时间戳
+  initTaskDeadlineTimestamps() {
+    const user = this.globalData.userInfo;
+    const todoList = user.todoList || [];
+    const now = Date.now();
+    
+    todoList.forEach(task => {
+      if (task.deadline && task.deadline !== '不限' && !task.deadlineTimestamp) {
+        // 计算截止时间戳
+        task.deadlineTimestamp = this.calculateDeadlineTimestamp(task.deadline, now);
+      }
+    });
+  },
+  
+  // 初始化属性历史记录（首次运行时写入今日真实数据）
+  initAttributeHistory() {
+    const user = this.globalData.userInfo;
+    if (!user.attributeHistory || user.attributeHistory.length === 0) {
+      const today = new Date();
+      const dateStr = `${today.getMonth() + 1}-${today.getDate()}`;
+      user.attributeHistory = [{
+        date: dateStr,
+        strength: user.attributes.strength || 0,
+        intelligence: user.attributes.intelligence || 0,
+        charm: user.attributes.charm || 0
+      }];
+      this.saveUserData();
+    }
+  },
+
+  // 新增：记录属性变更（每天只保留一条记录）
+  logAttributeChange() {
+    const user = this.globalData.userInfo;
+    if (!user.attributeHistory) user.attributeHistory = [];
+    
+    const today = new Date();
+    const dateStr = `${today.getMonth() + 1}-${today.getDate()}`;
+    const lastEntry = user.attributeHistory[user.attributeHistory.length - 1];
+    
+    const newEntry = {
+        date: dateStr,
+        strength: user.attributes.strength,
+        intelligence: user.attributes.intelligence,
+        charm: user.attributes.charm
+    };
+    
+    if (lastEntry && lastEntry.date === dateStr) {
+        // 今天已有记录，更新
+        user.attributeHistory[user.attributeHistory.length - 1] = newEntry;
+    } else {
+        // 新的一天，添加
+        user.attributeHistory.push(newEntry);
+        // 只保留最近指定天数
+        if (user.attributeHistory.length > MAX_ATTRIBUTE_HISTORY_DAYS) {
+            user.attributeHistory.shift();
+        }
+    }
+    this.saveUserData();
+  },
+
+  // 新增：根据deadline字符串计算时间戳（支持自定义日期格式）
+  calculateDeadlineTimestamp(deadlineStr, baseTime) {
+    if (!deadlineStr || deadlineStr === '不限') return null;
+    const now = new Date(baseTime);
+    
+    // 1. 处理自定义日期格式：如 "3/2 23:59"
+    if (deadlineStr.includes('/') && deadlineStr.includes(':')) {
+      const parts = deadlineStr.split(' ');
+      if (parts.length >= 2) {
+        const [month, day] = parts[0].split('/').map(n => parseInt(n));
+        const [hour, minute] = parts[1].split(':').map(n => parseInt(n));
+        
+        if (!isNaN(month) && !isNaN(day) && !isNaN(hour) && !isNaN(minute)) {
+          let targetDate = new Date(now.getFullYear(), month - 1, day, hour, minute, 0, 0);
+          // 如果计算出的时间已经过去（容差1小时，防止临界点误判），则设为明年
+          if (targetDate.getTime() < now.getTime() - 3600000) {
+            targetDate.setFullYear(now.getFullYear() + 1);
+          }
+          return targetDate.getTime();
+        }
+      }
+    }
+    
+    // 2. 处理纯时间格式：如 "23:59" (用于周期性任务)
+    if (deadlineStr.match(/^\d{1,2}:\d{2}$/)) {
+        const [hour, minute] = deadlineStr.split(':').map(n => parseInt(n));
+        if (!isNaN(hour) && !isNaN(minute)) {
+            let targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+            // 如果今天的时间已过，则设为明天
+            if (targetDate.getTime() < now.getTime()) {
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+            return targetDate.getTime();
+        }
+    }
+
+    // 3. 处理预设选项
+    const date = new Date(baseTime);
+    switch(deadlineStr) {
+      case '今天':
+        date.setHours(23, 59, 59, 999);
+        break;
+      case '明天':
+        date.setDate(date.getDate() + 1);
+        date.setHours(23, 59, 59, 999);
+        break;
+      case '3天内':
+        date.setDate(date.getDate() + 3);
+        date.setHours(23, 59, 59, 999);
+        break;
+      case '一周内':
+        date.setDate(date.getDate() + 7);
+        date.setHours(23, 59, 59, 999);
+        break;
+      default:
+        // 如果是日期格式但没匹配上正则，尝试直接解析
+        const ts = Date.parse(deadlineStr);
+        return isNaN(ts) ? null : ts;
+    }
+    
+    return date.getTime();
+  },
+
+  // 新增：处理银行利息结算 (跨天执行一次)
+  processDailyBankInterest() {
+    const user = this.globalData.userInfo;
+    if (!user) return;
+    
+    const settings = user.settings || {};
+    const bank = settings.bankSettings || { loanDailyRate: 1, depositDailyRate: 0.5 };
+    
+    const currentCoins = user.coins || 0;
+    let interest = 0;
+    let logTitle = "";
+    let logDesc = "";
+
+    if (currentCoins > 0) {
+      // 存款利息
+      const rate = parseFloat(bank.depositDailyRate) || 0;
+      if (rate > 0) {
+        interest = Math.floor(currentCoins * (rate / 100));
+        if (interest > 0) {
+          logTitle = "银行利息发放";
+          logDesc = `账户存款 ¥${currentCoins}，产生日利息 ¥${interest} (利率 ${rate}%)`;
+        }
+      }
+    } else if (currentCoins < 0) {
+      // 贷款利息
+      const rate = parseFloat(bank.loanDailyRate) || 0;
+      if (rate > 0) {
+        // 欠款 100，利息 1% = 1。余额变为 -101。
+        interest = -Math.floor(Math.abs(currentCoins) * (rate / 100));
+        if (interest < 0) {
+          logTitle = "贷款利息扣除";
+          logDesc = `账户贷款 ¥${Math.abs(currentCoins)}，产生日利息 ¥${Math.abs(interest)} (利率 ${rate}%)`;
+        }
+      }
+    }
+
+    if (interest !== 0) {
+      this.addCoins(interest, false);
+      this.addGrowthLog('bank_interest', logTitle, logDesc, false);
+    }
+  },
+
+  // save=false 时日志不触发额外保存
+  checkLevelUp(save = true) {
+    const user = this.globalData.userInfo;
+    let leveledUp = false;
+    while (user.currentExp >= user.nextLevelExp) {
+      user.currentExp -= user.nextLevelExp;
+      user.level++;
+      // 每一级所需经验增加，例如 1.2 倍成长
+      user.nextLevelExp = Math.floor(user.nextLevelExp * 1.2);
+      leveledUp = true;
+    }
+    if (leveledUp) {
+      vibrator.vibrate({ mode: 'short' });
+      prompt.showToast({ message: `恭喜升级！当前等级: ${user.level}` });
+      
+      // 记录日志（不触发额外保存，由 gainExp 统一处理）
+      this.addGrowthLog('level_up', '等级提升', `恭喜达到等级 ${user.level}`, false);
+      
+      return user.level;
+    }
+    return null;
+  }
+};
+</script>

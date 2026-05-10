@@ -1,0 +1,812 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="creator-area">
+    <scroll id="formScroll" class="form-box" scroll-y="true" bounces="true" onscroll="handleScroll">
+      <div class="header-section">
+          <text class="page-main-title">{{editingTaskId ? '编辑委托' : '发布新委托'}}</text>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">任务设定</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('title')">
+            <text class="control-label" static>目标</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text {{keyboardTarget === 'title' ? 'editing-text' : ''}}">{{getDisplayValue(newTask.title, 'title')}}</text>
+            </div>
+          </div>
+           <div class="control-row mb-12" onclick="cycleImportance(1)">
+            <text class="control-label" static>重要度</text>
+            <div class="value-pill {{newTask.importance==='紧急' ? 'pill-red' : (newTask.importance==='重要' ? 'pill-orange' : 'pill-blue')}}">
+               <text class="pill-text {{newTask.importance==='紧急' ? 'c-red' : (newTask.importance==='重要' ? 'c-orange' : 'c-blue')}}">{{newTask.importance}}</text>
+            </div>
+          </div>
+           <div class="control-row mb-12" onclick="cycleFrequency(1)">
+            <text class="control-label" static>频次</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newTask.frequency}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{newTask.frequency === '每N天'}}" onclick="openKeyboard('intervalDays')">
+            <text class="control-label" static>间隔天数</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newTask.intervalDays}}天</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="cycleTaskType(1)">
+            <text class="control-label" static>委托类型</text>
+            <div class="value-pill pill-purple">
+               <text class="pill-text c-purple">{{getTaskTypeLabel(newTask.taskType)}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{newTask.taskType === 'count'}}" onclick="openKeyboard('targetCount')">
+            <text class="control-label" static>目标次数</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newTask.targetCount}}次</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{newTask.taskType === 'count' && newTask.frequency !== '单次'}}" onclick="toggleCountMode()">
+            <text class="control-label" static>计数方式</text>
+            <div class="value-pill pill-blue">
+               <text class="pill-text c-blue">{{newTask.countMode === 'cross_cycle' ? '分步打卡' : '集中完成'}}</text>
+            </div>
+          </div>
+          <div class="control-row" if="{{newTask.taskType === 'timer'}}" onclick="openKeyboard('targetTime')">
+            <text class="control-label" static>目标时长</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newTask.targetTime}}分钟</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">奖励回报</text>
+        <div class="control-card">
+           <div class="control-row mb-12" onclick="openKeyboard('rewardExp')">
+            <text class="control-label" static>经验</text>
+            <div class="value-pill {{newTask.rewardExp<0?'pill-red':'pill-green'}}">
+               <text class="pill-text {{newTask.rewardExp<0?'c-red':'c-green'}}">{{newTask.rewardExp}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12">
+            <text class="control-label" onclick="toggleGoldMode()">金币 {{newTask.goldMode==='fixed'?'(固定)':'(随机)'}}</text>
+            <div class="value-pill {{newTask.rewardCoins<0?'pill-red':'pill-gold'}}" onclick="openKeyboard('rewardCoins')">
+               <text class="pill-text {{newTask.rewardCoins<0?'c-red':'c-gold'}}">{{newTask.rewardCoins}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{newTask.frequency !== '单次'}}" onclick="openKeyboard('comboMultiplier')">
+            <text class="control-label" static>连击加成</text>
+            <div class="value-pill pill-orange">
+               <text class="pill-text c-orange">{{newTask.comboMultiplier}}%</text>
+            </div>
+          </div>
+           <div class="control-row" onclick="cycleItem(1)">
+            <text class="control-label" static>道具</text>
+            <div class="value-pill pill-blue">
+               <text class="pill-text c-blue">{{newTask.rewardItem}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">属性加成</text>
+        <div class="control-card">
+           <div class="control-row mb-12" onclick="cycleAttrType(1)">
+            <text class="control-label" static>类型</text>
+            <div class="value-pill {{getAttrPillColor(newTask.attrType)}}">
+               <text class="pill-text {{getAttrColor(newTask.attrType)}}">{{getAttrLabel(newTask.attrType)}}</text>
+            </div>
+          </div>
+           <div class="control-row" onclick="openKeyboard('attrVal')">
+            <text class="control-label" static>点数</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newTask.attrVal}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group" if="{{enableCustomPenalty}}">
+        <text class="group-title {{'c-'+themeColor}}">约束与惩罚</text>
+        <div class="control-card">
+           <div class="control-row mb-12" onclick="cycleDeadline(1)">
+            <text class="control-label" static>期限类型</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{deadlines[deadlineIndex]}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间' && newTask.frequency === '单次'}}">
+            <text class="control-label" static>月份</text>
+            <picker class="time-picker-pill" type="text" range="{{monthOptions}}" selected="{{monthIndex}}" onchange="onMonthChange"></picker>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间' && newTask.frequency === '单次'}}">
+            <text class="control-label" static>日期</text>
+            <picker class="time-picker-pill" type="text" range="{{dayOptions}}" selected="{{dayIndex}}" onchange="onDayChange"></picker>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间'}}">
+            <text class="control-label" static>时间</text>
+            <picker class="time-picker-pill" type="time" selected="{{customTime}}" onchange="onCustomTimeChange"></picker>
+          </div>
+           <div class="control-row" onclick="openKeyboard('punishment')">
+            <text class="control-label" static>失败扣币</text>
+            <div class="value-pill pill-red">
+               <text class="pill-text c-red">{{newTask.punishment}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group" if="{{!enableCustomPenalty}}">
+        <text class="group-title {{'c-'+themeColor}}">期限约束</text>
+        <div class="control-card">
+           <div class="control-row mb-12" onclick="cycleDeadline(1)">
+            <text class="control-label" static>期限类型</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{deadlines[deadlineIndex]}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间' && newTask.frequency === '单次'}}">
+            <text class="control-label" static>月份</text>
+            <picker class="time-picker-pill" type="text" range="{{monthOptions}}" selected="{{monthIndex}}" onchange="onMonthChange"></picker>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间' && newTask.frequency === '单次'}}">
+            <text class="control-label" static>日期</text>
+            <picker class="time-picker-pill" type="text" range="{{dayOptions}}" selected="{{dayIndex}}" onchange="onDayChange"></picker>
+          </div>
+          <div class="control-row mb-12" if="{{deadlines[deadlineIndex] === '自定义时间'}}">
+            <text class="control-label" static>时间</text>
+            <picker class="time-picker-pill" type="time" selected="{{customTime}}" onchange="onCustomTimeChange"></picker>
+          </div>
+        </div>
+      </div>
+      <div class="save-section {{'bg-'+themeColor}}" onclick="emitSave">
+          <text class="save-btn-txt">{{editingTaskId ? '保存修改' : '立即发布'}}</text>
+      </div>
+
+      <div class="delete-section" if="{{editingTaskId}}" onclick="emitDelete">
+          <text class="delete-btn-txt">删除此委托</text>
+      </div>
+      
+      <div class="spacer-lg"></div>
+    </scroll>
+
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="{{keyboardType}}"
+      maxlength="8"
+      vibratemode="short"
+      screentype="{{screenType}}"
+      onvisibilityChange="onVisibilityChange"
+      onkeyDown="onKeyDown"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+
+export default {
+  props: [
+    'editingTaskId',
+    'initialData',
+    'shopItemsList',
+    'themeColor'
+  ],
+  data: {
+    presetTitles: ['晨跑锻炼', '阅读书籍', '背诵单词', '练习代码', '整理房间'],
+    isScrolled: false,
+    titleIndex: 0,
+    presetItems: ['无'],
+    itemIndex: 0,
+    frequencies: ['单次', '无限', '每日', '每周', '每月', '每年', '每N天'],
+    freqIndex: 0,
+    taskTypes: ['normal', 'count', 'timer'],
+    typeIndex: 0,
+    deadlines: ['不限', '今天', '明天', '自定义时间'],
+    deadlineIndex: 0,
+    monthOptions: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+    monthIndex: 0,
+    dayOptions: [],
+    dayIndex: 0,
+    customTime: '23:59',
+    importances: ['普通', '重要', '紧急'],
+    impIndex: 0,
+    attrTypes: ['strength', 'intelligence', 'charm'],
+    customAttrOptions: [],
+    attrIndex: 0,
+    enableCustomPenalty: true,
+    newTask: {
+      title: '晨跑锻炼',
+      rewardCoins: 20,
+      goldMode: 'fixed',
+      importance: '普通',
+      rewardExp: 10,
+      rewardItem: '无',
+      punishment: 0,
+      frequency: '单次',
+      taskType: 'normal',
+      targetCount: 10,
+      targetTime: 25,
+      intervalDays: 3,
+      comboMultiplier: 0,
+      countMode: 'single_cycle',
+      deadline: '不限',
+      attrType: 'strength',
+      attrVal: 1
+    },
+    hideKeyboard: true,
+    keyboardType: "QWERTY",
+    screenType: "rect",
+    keyboardTarget: '',
+    negativeSign: false
+  },
+
+  onInit() {
+    const now = new Date();
+    this.monthIndex = now.getMonth();
+    this.dayIndex = now.getDate() - 1;
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    this.customTime = `${hours}:${minutes}`;
+    this.generateDayOptions();
+
+    const user = this.$app.$def.globalData.userInfo;
+    this.enableCustomPenalty = (user.settings && user.settings.penaltySettings) ? user.settings.penaltySettings.enableCustomPenalty : true;
+    if (user.customAttributes && user.customAttributes.length > 0) {
+        this.customAttrOptions = user.customAttributes.map(a => ({ name: a.name, color: a.color }));
+        this.attrTypes = ['strength', 'intelligence', 'charm', ...this.customAttrOptions.map(o => o.name)];
+    }
+
+    // 更新原生属性配置
+    if (user.baseAttrConfig) {
+      const strName = (user.baseAttrConfig.strength && user.baseAttrConfig.strength.name) || '力量';
+      const intName = (user.baseAttrConfig.intelligence && user.baseAttrConfig.intelligence.name) || '智力';
+      const chaName = (user.baseAttrConfig.charm && user.baseAttrConfig.charm.name) || '魅力';
+      this.baseAttrNames = { strength: strName, intelligence: intName, charm: chaName };
+
+      const strColor = (user.baseAttrConfig.strength && user.baseAttrConfig.strength.color) || 'red';
+      const intColor = (user.baseAttrConfig.intelligence && user.baseAttrConfig.intelligence.color) || 'blue';
+      const chaColor = (user.baseAttrConfig.charm && user.baseAttrConfig.charm.color) || 'purple';
+      this.baseAttrColors = { strength: strColor, intelligence: intColor, charm: chaColor };
+    } else {
+      this.baseAttrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+      this.baseAttrColors = { strength: 'red', intelligence: 'blue', charm: 'purple' };
+    }
+    
+    if (this.shopItemsList && this.shopItemsList.length > 0) {
+        this.presetItems = ['无', ...this.shopItemsList.map(i => i.name)];
+    }
+
+    if (this.initialData) {
+        this.newTask = JSON.parse(JSON.stringify(this.initialData));
+        this.titleIndex = Math.max(0, this.presetTitles.indexOf(this.newTask.title));
+        if (this.titleIndex === -1) this.titleIndex = 0;
+        this.itemIndex = Math.max(0, this.presetItems.indexOf(this.newTask.rewardItem));
+        this.freqIndex = Math.max(0, this.frequencies.indexOf(this.newTask.frequency));
+        this.typeIndex = Math.max(0, this.taskTypes.indexOf(this.newTask.taskType || 'normal'));
+        
+        const dIdx = this.deadlines.indexOf(this.newTask.deadline);
+        if (dIdx === -1 && this.newTask.deadline !== '不限') {
+            this.deadlineIndex = this.deadlines.indexOf('自定义时间');
+            this.parseCustomDeadline(this.newTask.deadline);
+        } else {
+            this.deadlineIndex = Math.max(0, dIdx);
+        }
+
+        this.impIndex = Math.max(0, this.importances.indexOf(this.newTask.importance));
+        this.attrIndex = Math.max(0, this.attrTypes.indexOf(this.newTask.attrType));
+    } else {
+        const user = this.$app.$def.globalData.userInfo;
+        const rememberConfig = user.settings && user.settings.rememberLastConfig;
+        if (rememberConfig && user.lastTaskConfig) {
+            this.newTask = JSON.parse(JSON.stringify(user.lastTaskConfig));
+            const ti = this.presetTitles.indexOf(this.newTask.title);
+            this.titleIndex = ti >= 0 ? ti : 0;
+            this.itemIndex = Math.max(0, this.presetItems.indexOf(this.newTask.rewardItem));
+            this.freqIndex = Math.max(0, this.frequencies.indexOf(this.newTask.frequency));
+            this.typeIndex = Math.max(0, this.taskTypes.indexOf(this.newTask.taskType || 'normal'));
+            let dIdx = this.deadlines.indexOf(this.newTask.deadline);
+            if (dIdx === -1 && this.newTask.deadline !== '不限') {
+                this.deadlineIndex = this.deadlines.indexOf('自定义时间');
+                this.parseCustomDeadline(this.newTask.deadline);
+            } else {
+                this.deadlineIndex = Math.max(0, dIdx);
+            }
+            this.impIndex = Math.max(0, this.importances.indexOf(this.newTask.importance));
+            this.attrIndex = Math.max(0, this.attrTypes.indexOf(this.newTask.attrType));
+        } else {
+            this.resetForm();
+        }
+    }
+  },
+
+  resetForm() {
+    const randomIdx = Math.floor(Math.random() * this.presetTitles.length);
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    this.titleIndex = randomIdx;
+    this.itemIndex = 0;
+    this.freqIndex = 0;
+    this.deadlineIndex = 0;
+    this.typeIndex = 0;
+    this.customTime = `${hours}:${minutes}`;
+    this.impIndex = 0;
+    this.attrIndex = 0;
+    this.newTask = {
+      title: this.presetTitles[randomIdx],
+      rewardCoins: 20,
+      goldMode: 'fixed',
+      importance: '普通',
+      rewardExp: 10,
+      rewardItem: '无',
+      punishment: 0,
+      frequency: '单次',
+      taskType: 'normal',
+      targetCount: 10,
+      targetTime: 25,
+      intervalDays: 3,
+      comboMultiplier: 0,
+      countMode: 'single_cycle',
+      deadline: '不限',
+      attrType: 'strength',
+      attrVal: 1
+    };
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  handleScroll(evt) {
+    const scrollY = evt.scrollY || 0;
+    this.isScrolled = scrollY > 20;
+  },
+
+  getDisplayValue(val, target) {
+    if (this.keyboardTarget === target) {
+       let str = String(val);
+       if (str.length > 5) {
+          return str.slice(-5);
+       }
+    }
+    return val;
+  },
+
+  cycleTitle(dir) {
+    this.vibrate();
+    this.titleIndex = (this.titleIndex + dir + this.presetTitles.length) % this.presetTitles.length;
+    this.newTask.title = this.presetTitles[this.titleIndex];
+  },
+
+  cycleItem(dir) {
+    this.vibrate();
+    this.itemIndex = (this.itemIndex + dir + this.presetItems.length) % this.presetItems.length;
+    this.newTask.rewardItem = this.presetItems[this.itemIndex];
+  },
+
+  cycleAttrType(dir) {
+    this.vibrate();
+    this.attrIndex = (this.attrIndex + dir + this.attrTypes.length) % this.attrTypes.length;
+    this.newTask.attrType = this.attrTypes[this.attrIndex];
+  },
+  
+  getAttrLabel(type) {
+    if (this.baseAttrNames && this.baseAttrNames[type]) {
+      return this.baseAttrNames[type];
+    }
+    const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+    return map[type] || type;
+  },
+  
+  getAttrColor(type) {
+    if (this.baseAttrColors && this.baseAttrColors[type]) {
+      return 'c-' + this.baseAttrColors[type];
+    }
+    const map = { strength: 'c-red', intelligence: 'c-blue', charm: 'c-purple' };
+    if (map[type]) return map[type];
+    const custom = this.customAttrOptions.find(o => o.name === type);
+    return custom ? 'c-' + custom.color : '';
+  },
+  
+  getAttrPillColor(type) {
+    if (this.baseAttrColors && this.baseAttrColors[type]) {
+      return 'pill-' + this.baseAttrColors[type];
+    }
+    const map = { strength: 'pill-red', intelligence: 'pill-blue', charm: 'pill-purple' };
+    if (map[type]) return map[type];
+    const custom = this.customAttrOptions.find(o => o.name === type);
+    return custom ? 'pill-' + custom.color : 'pill-gray';
+  },
+
+  cycleImportance(dir) {
+    this.vibrate();
+    this.impIndex = (this.impIndex + dir + this.importances.length) % this.importances.length;
+    this.newTask.importance = this.importances[this.impIndex];
+    const expMap = { '普通': 10, '重要': 30, '紧急': 60 };
+    this.newTask.rewardExp = expMap[this.newTask.importance];
+  },
+
+  cycleFrequency(dir) {
+    this.vibrate();
+    this.freqIndex = (this.freqIndex + dir + this.frequencies.length) % this.frequencies.length;
+    this.newTask.frequency = this.frequencies[this.freqIndex];
+  },
+
+  cycleTaskType(dir) {
+    this.vibrate();
+    this.typeIndex = (this.typeIndex + dir + this.taskTypes.length) % this.taskTypes.length;
+    this.newTask.taskType = this.taskTypes[this.typeIndex];
+  },
+
+  getTaskTypeLabel(type) {
+    const map = { normal: '普通委托', count: '计数委托', timer: '计时委托' };
+    return map[type] || type;
+  },
+
+  generateDayOptions() {
+    const year = new Date().getFullYear();
+    const month = this.monthIndex + 1;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const opts = [];
+    for(let i = 1; i <= daysInMonth; i++) {
+        opts.push(`${i}日`);
+    }
+    this.dayOptions = opts;
+    if (this.dayIndex >= daysInMonth) {
+        this.dayIndex = daysInMonth - 1;
+    }
+  },
+
+  onMonthChange(e) {
+    this.vibrate();
+    this.monthIndex = e.newSelected;
+    this.generateDayOptions();
+    this.updateCustomDeadline();
+  },
+
+  onDayChange(e) {
+    this.vibrate();
+    this.dayIndex = e.newSelected;
+    this.updateCustomDeadline();
+  },
+
+  parseCustomDeadline(deadline) {
+    if (!deadline) return;
+    // 处理 HH:mm 格式
+    if (deadline.match(/^\d{1,2}:\d{2}$/)) {
+        this.customTime = deadline;
+        return;
+    }
+    // 处理 M/D HH:mm 格式
+    const match = deadline.match(/^(\d+)\/(\d+)\s+(\d+):(\d+)$/);
+    if (match) {
+        this.monthIndex = parseInt(match[1]) - 1;
+        this.dayIndex = parseInt(match[2]) - 1;
+        this.customTime = `${match[3].padStart(2, '0')}:${match[4].padStart(2, '0')}`;
+        this.generateDayOptions();
+    }
+  },
+
+  updateCustomDeadline() {
+    if (this.newTask.frequency === '单次') {
+        const month = this.monthIndex + 1;
+        const day = this.dayIndex + 1;
+        this.newTask.deadline = `${month}/${day} ${this.customTime}`;
+    } else {
+        // 周期性任务只保存时间
+        this.newTask.deadline = this.customTime;
+    }
+  },
+
+  cycleDeadline(dir) {
+    this.vibrate();
+    this.deadlineIndex = (this.deadlineIndex + dir + this.deadlines.length) % this.deadlines.length;
+    let selectedDeadline = this.deadlines[this.deadlineIndex];
+    if (selectedDeadline === '自定义时间') {
+        this.updateCustomDeadline();
+    } else {
+        this.newTask.deadline = selectedDeadline;
+    }
+  },
+
+  onCustomTimeChange(e) {
+    this.vibrate();
+    let h = String(e.hour).padStart(2, '0');
+    let m = String(e.minute).padStart(2, '0');
+    this.customTime = h + ':' + m;
+    this.updateCustomDeadline();
+  },
+
+  toggleGoldMode() {
+    this.vibrate();
+    this.newTask.goldMode = this.newTask.goldMode === 'fixed' ? 'random' : 'fixed';
+  },
+
+  toggleCountMode() {
+    this.vibrate();
+    this.newTask.countMode = this.newTask.countMode === 'cross_cycle' ? 'single_cycle' : 'cross_cycle';
+  },
+  
+  openKeyboard(target) {
+    if (target === 'rewardExp' || target === 'rewardCoins' || target === 'attrVal' || target === 'punishment' || target === 'targetCount' || target === 'targetTime' || target === 'intervalDays' || target === 'comboMultiplier') {
+      this.keyboardType = 'number';
+    } else {
+      this.keyboardType = 'QWERTY';
+    }
+
+    if (this.keyboardTarget === target && !this.hideKeyboard) {
+        this.closeKeyboard();
+    } else {
+        this.keyboardTarget = target;
+        this.hideKeyboard = false;
+        const numericFields = ['rewardExp', 'rewardCoins', 'attrVal', 'punishment', 'targetCount', 'targetTime', 'intervalDays', 'comboMultiplier'];
+        if (numericFields.includes(target)) {
+            this.negativeSign = (this.newTask[target] || 0) < 0;
+        } else {
+            this.negativeSign = false;
+        }
+        if (target === 'title' && this.presetTitles.includes(this.newTask.title)) {
+             this.newTask.title = '';
+        }
+    }
+  },
+
+  closeKeyboard() {
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+  },
+  
+  onVisibilityChange() {},
+  
+  onKeyDown() {},
+  
+  onDelete() {
+    this.vibrate();
+    if (this.keyboardTarget === 'title') {
+       this.newTask.title = this.newTask.title.slice(0, -1);
+    } else if (['rewardExp', 'rewardCoins', 'attrVal', 'punishment', 'targetCount', 'targetTime', 'intervalDays', 'comboMultiplier'].includes(this.keyboardTarget)) {
+       let targetKey = this.keyboardTarget;
+       let str = String(Math.abs(this.newTask[targetKey] || 0));
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           let val = (next === '' || next === '0') ? 0 : parseInt(next, 10);
+           if (val === 0) this.negativeSign = false;
+           this.newTask[targetKey] = this.negativeSign ? -val : val;
+       }
+    }
+  },
+  
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+
+    if (this.keyboardTarget === 'title') {
+       this.newTask.title += content;
+    } else if (['rewardExp', 'rewardCoins', 'attrVal', 'punishment', 'targetCount', 'targetTime', 'intervalDays', 'comboMultiplier'].includes(this.keyboardTarget)) {
+       let targetKey = this.keyboardTarget;
+       if (content === '-') {
+           // 仅允许部分奖励/属性值字段输入负号
+           const allowNegative = ['rewardExp', 'rewardCoins', 'attrVal'].includes(targetKey);
+           if (!allowNegative) return;
+
+           this.negativeSign = !this.negativeSign;
+           const absVal = Math.abs(this.newTask[targetKey] || 0);
+           this.newTask[targetKey] = this.negativeSign ? -absVal : absVal;
+           return;
+       }
+       let str = String(Math.abs(this.newTask[targetKey] || 0));
+       let nextVal = str === '0' ? parseInt(content, 10) : parseInt(str + content, 10);
+       if (isNaN(nextVal)) nextVal = 0;
+       this.newTask[targetKey] = this.negativeSign ? -nextVal : nextVal;
+    }
+  },
+
+  emitClose() {
+    this.vibrate();
+    this.$emit('close');
+  },
+
+  emitSave() {
+    this.vibrate();
+    const prompt = require('@system.prompt');
+
+    if (!this.newTask.title || this.newTask.title.trim() === '') {
+        prompt.showToast({ message: '请输入委托名称' });
+        return;
+    }
+
+    // 业务逻辑校验优化
+    if (this.newTask.taskType === 'count' && this.newTask.targetCount <= 0) {
+        prompt.showToast({ message: '目标次数必须大于0' });
+        return;
+    }
+    if (this.newTask.taskType === 'timer' && this.newTask.targetTime <= 0) {
+        prompt.showToast({ message: '目标时长必须大于0' });
+        return;
+    }
+    if (this.newTask.frequency === '每N天' && this.newTask.intervalDays <= 0) {
+        prompt.showToast({ message: '间隔天数必须大于0' });
+        return;
+    }
+    
+    // 初始化类型相关进度
+    if (this.newTask.taskType === 'count') {
+        this.newTask.currentCount = 0;
+    } else if (this.newTask.taskType === 'timer') {
+        this.newTask.remainingTime = this.newTask.targetTime * 60; // 转为秒
+        this.newTask.isTimerRunning = false;
+    }
+    
+    const user = this.$app.$def.globalData.userInfo;
+    if (user.settings && user.settings.rememberLastConfig) {
+        user.lastTaskConfig = JSON.parse(JSON.stringify(this.newTask));
+        this.$app.$def.saveUserData();
+    }
+    this.$emit('save', { task: this.newTask });
+  },
+
+  emitDelete() {
+    this.vibrate();
+    this.$emit('delete', { taskId: this.editingTaskId });
+  }
+}
+</script>
+
+<style>
+  .creator-area { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background-color: #000; flex-direction: column; z-index: 100; 
+  }
+  
+  .header-section { margin-bottom: 20px; padding-left: 8px; margin-top: 10px; }
+  .page-main-title { font-size: 32px; font-weight: bold; color: #fff; }
+
+  .form-box { flex: 1; flex-direction: column; padding: 16px; }
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+  
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    background-color: transparent;
+    padding: 0 4px;
+  }
+  
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+  }
+  
+  .pill-text { 
+      color: #fff; 
+      font-size: 24px; 
+      text-align: center; 
+      font-weight: bold; 
+      lines: 1; 
+      text-overflow: ellipsis; 
+  }
+
+  .editing-text { text-overflow: clip; }
+
+  .time-picker-pill {
+      width: 160px;
+      height: 48px;
+      border-radius: 16px;
+      background-color: #2C2C2E;
+      color: #fff;
+      font-size: 24px;
+      selected-font-size: 24px;
+      selected-color: #fff;
+      selected-background-color: transparent;
+      text-align: center;
+      padding-top: 5px;
+  }
+
+  .pill-gray { background-color: #2C2C2E; }
+  .pill-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .pill-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+  .pill-red { background-color: rgba(255, 69, 58, 0.15); }
+  .pill-gold { background-color: rgba(255, 214, 10, 0.15); }
+
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-red { color: #FF453A; }
+  .c-gold { color: #FFD60A; }
+
+  .bg-red { background-color: #FF3B30; }
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-pink { background-color: #FF2D55; }
+  .bg-yellow { background-color: #FFCC00; }
+  .bg-teal { background-color: #30B0C7; }
+  .bg-indigo { background-color: #5856D6; }
+  .bg-brown { background-color: #A2845E; }
+  .bg-gray { background-color: #8E8E93; }
+  .bg-cyan { background-color: #32ADE6; }
+
+  .c-red { color: #FF3B30; }
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-pink { color: #FF2D55; }
+  .c-yellow { color: #FFCC00; }
+  .c-teal { color: #30B0C7; }
+  .c-indigo { color: #5856D6; }
+  .c-brown { color: #A2845E; }
+  .c-gray { color: #8E8E93; }
+  .c-cyan { color: #32ADE6; }
+
+  .pill-red { background-color: rgba(255, 59, 48, 0.15); }
+  .pill-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .pill-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+  .pill-pink { background-color: rgba(255, 45, 85, 0.15); }
+  .pill-yellow { background-color: rgba(255, 204, 0, 0.15); }
+  .pill-teal { background-color: rgba(48, 176, 199, 0.15); }
+  .pill-indigo { background-color: rgba(88, 86, 214, 0.15); }
+  .pill-brown { background-color: rgba(162, 132, 94, 0.15); }
+  .pill-gray { background-color: rgba(142, 142, 147, 0.15); }
+  .pill-cyan { background-color: rgba(50, 173, 230, 0.15); }
+  
+  .small-font { font-size: 20px; }
+  
+  .spacer-lg { height: 80px; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+
+  .save-section {
+    margin-top: 20px;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .save-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .delete-section {
+    height: 72px;
+    border-radius: 26px;
+    border: 2px solid rgba(255, 69, 58, 0.3);
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 69, 58, 0.1);
+  }
+  .delete-btn-txt { font-size: 28px; color: #FF453A; font-weight: bold; }
+</style>

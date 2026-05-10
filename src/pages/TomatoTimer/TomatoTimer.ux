@@ -1,0 +1,884 @@
+<template>
+  <div class="page-container">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+      <!-- Header -->
+      <div class="header-row">
+        <text class="page-title">专注番茄钟</text>
+      </div>
+
+      <!-- Owned Tomatoes Card (Ref: Shop/index.ux balance-card) -->
+      <div class="balance-card" onclick="showTomatoActions">
+        <text class="balance-label" static>当前拥有</text>
+        <div class="balance-row">
+           <div class="coin-icon-circle tomato-bg">
+             <image class="mini-fq-icon" src="/common/icons/fq.png"></image>
+           </div>
+           <text class="balance-val c-red">{{ownedTomatoes}}</text>
+        </div>
+      </div>
+
+      <!-- Main Timer Card (Ref: Screenshot) -->
+      <div class="timer-main-card">
+        <div class="timer-display-box">
+          <text class="time-nums">{{formatTime(remainingTime)}}</text>
+          <div class="status-box">
+            <text class="status-txt" if="{{status === 'idle'}}">准备专注</text>
+            <text class="status-txt" if="{{status === 'running'}}">专注中</text>
+            <text class="status-txt" if="{{status === 'resting'}}">休息中</text>
+            <text class="status-txt" if="{{status === 'paused'}}">已暂停</text>
+            <text class="status-txt" if="{{status === 'waiting_rest'}}">专注已完成，准备休息</text>
+            <text class="status-txt" if="{{status === 'finished'}}">已完成</text>
+          </div>
+        </div>
+        
+        <!-- Custom Progress Bar (Ref: Screenshot) -->
+        <div class="progress-container">
+          <div class="progress-bg">
+            <div class="progress-fill" style="width: {{progressPercent}}%; background-color: {{themeHexColor}};"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings & Controls (Ref: TaskCreator.ux Style) -->
+      <div class="control-container">
+        <div class="card-group" if="{{status === 'idle'}}">
+          <text class="group-title {{'c-'+themeColor}}">关联委托</text>
+          <div class="control-card" onclick="showTaskPicker">
+            <div class="control-row">
+              <text class="control-label">选择委托</text>
+              <div class="value-pill pill-gray">
+                <text class="pill-text">{{selectedTask ? selectedTask.title : '不关联'}}</text>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-group" if="{{status === 'idle'}}">
+          <text class="group-title {{'c-'+themeColor}}">定时设定</text>
+          <div class="control-card">
+            <div class="control-row mb-12">
+              <text class="control-label">专注时长</text>
+              <picker class="time-picker-pill" 
+                type="text" 
+                range="{{durations}}" 
+                selected="{{durationIndex}}" 
+                onchange="onDurationChange">
+              </picker>
+            </div>
+            <div class="control-row">
+              <text class="control-label">休息时长</text>
+              <picker class="time-picker-pill" 
+                type="text" 
+                range="{{restDurations}}" 
+                selected="{{restDurationIndex}}" 
+                onchange="onRestDurationChange">
+              </picker>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="btns-group">
+          <!-- Start Button -->
+          <div class="main-btn {{'bg-'+themeColor}}" if="{{status === 'idle'}}" onclick="startTimer">
+            <text class="main-btn-txt">开始专注</text>
+          </div>
+
+          <!-- Waiting for Rest -->
+          <div class="main-btn bg-blue" if="{{status === 'waiting_rest'}}" onclick="startRest">
+            <text class="main-btn-txt">开始休息</text>
+          </div>
+
+          <!-- Running/Paused/Resting Controls -->
+          <block if="{{status === 'running' || status === 'paused' || status === 'resting'}}">
+             <div class="dual-btns">
+               <div class="sub-btn bg-dark mr-12" onclick="togglePause">
+                 <text class="sub-btn-txt">{{pauseButtonText}}</text>
+               </div>
+               <div class="sub-btn {{status === 'resting' ? 'bg-blue-dim' : 'bg-red-dim'}}" onclick="handleSecondaryAction">
+                 <text class="sub-btn-txt {{status === 'resting' ? 'c-blue' : 'c-red'}}">{{status === 'resting' ? '结束休息' : '放弃'}}</text>
+               </div>
+             </div>
+          </block>
+
+          <!-- Finished Reset -->
+          <div class="main-btn {{'bg-'+themeColor}}" if="{{status === 'finished'}}" onclick="resetTimer">
+            <text class="main-btn-txt">再来一个番茄</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Footer -->
+      <div class="footer-stats">
+          <div class="stats-badge">
+             <image class="stats-icon-img" src="/common/icons/fq.png"></image>
+             <text class="stats-val">今日已收获 {{todayTomatoes}} 个番茄</text>
+             <!-- Inline Settings Button -->
+             <div class="settings-btn-inline" onclick="openSettings">
+                <image class="settings-icon-sm" src="/common/icons/more-fill.png"></image>
+             </div>
+          </div>
+      </div>
+
+      <div class="spacer"></div>
+    </scroll>
+
+    <!-- Task Picker Overlay -->
+    <div class="picker-overlay" if="{{pickerVisible}}" onclick="closePicker">
+       <div class="picker-content" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title">关联委托</text>
+             </div>
+             
+             <div class="picker-item-box" onclick="onPickTask(null)">
+                <div class="picker-item-left">
+                   <text class="item-name">不关联</text>
+                   <text class="item-desc-short">仅进行番茄钟专注</text>
+                </div>
+             </div>
+
+             <div class="picker-item-box" for="{{(idx, task) in availableTasks}}" tid="id" onclick="onPickTask(task)">
+                <div class="picker-item-left">
+                   <text class="item-name">{{task.title}}</text>
+                   <text class="item-desc-short" if="{{task.taskType==='count'}}">进度: {{task.currentCount}}/{{task.targetCount}}</text>
+                   <text class="item-desc-short" else>普通委托</text>
+                </div>
+                <text class="item-type-tag {{task.importance==='紧急'?'bg-red':'bg-blue'}}">{{task.importance}}</text>
+             </div>
+             
+             <div class="empty-picker" if="{{!availableTasks || availableTasks.length === 0}}">
+                <text class="empty-txt">暂无可关联的未完成委托</text>
+             </div>
+          </scroll>
+       </div>
+    </div>
+
+    <!-- Custom Modal (Ref: Settings Style) -->
+    <div class="modal-mask" if="{{modalVisible}}">
+      <div class="modal-box">
+        <text class="modal-title c-red">放弃专注</text>
+        <text class="modal-content">确定要放弃当前的专注/休息吗？</text>
+        <div class="modal-btns">
+          <div class="modal-btn modal-cancel" onclick="closeModal">
+            <text class="modal-btn-txt modal-cancel-txt">继续</text>
+          </div>
+          <div class="modal-btn modal-confirm bg-red" onclick="handleModalConfirm">
+            <text class="modal-btn-txt modal-confirm-txt">确定放弃</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tomato Action Popup -->
+    <div class="picker-overlay" if="{{actionPopupVisible}}" onclick="closeActionPopup">
+       <div class="picker-content action-popup-height" onclick="stopClick">
+          <div class="popup-handle"></div>
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title">番茄处理</text>
+             </div>
+             
+             <div class="action-info">
+                <text class="action-count-tip">当前拥有: {{ownedTomatoes}} 个番茄</text>
+             </div>
+
+             <div class="action-list">
+                <div class="action-item" onclick="eatTomato">
+                   <text class="action-item-name">食用</text>
+                   <text class="action-item-desc">获得 {{tomatoSettings.eatExp || 10}} 经验</text>
+                </div>
+                <div class="action-item" onclick="sellTomato">
+                   <text class="action-item-name">出售</text>
+                   <text class="action-item-desc">获得 {{tomatoSettings.sellPrice || 10}} 金币</text>
+                </div>
+                <div class="action-item" onclick="showExchangePopup">
+                   <text class="action-item-name">兑换</text>
+                   <text class="action-item-desc">兑换商店商品</text>
+                </div>
+             </div>
+             <div style="height: 40px;"></div>
+          </scroll>
+       </div>
+    </div>
+
+    <!-- Exchange Popup -->
+    <div class="picker-overlay" if="{{exchangePopupVisible}}" onclick="closeExchangePopup">
+       <div class="picker-content" onclick="stopClick">
+          <div class="popup-handle"></div>
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title">番茄兑换</text>
+             </div>
+             
+             <div class="picker-item-box" for="{{(idx, item) in tomatoSettings.exchangeItems}}" tid="name">
+                <div class="picker-item-left">
+                   <text class="item-name">{{item.name}}</text>
+                   <text class="item-desc-short">消耗: {{item.cost}} 番茄</text>
+                </div>
+                <div class="exchange-btn {{ownedTomatoes >= item.cost ? 'bg-orange' : 'bg-gray'}}" onclick="doExchange(item)">
+                   <text class="exchange-btn-txt">兑换</text>
+                </div>
+             </div>
+             
+             <div class="empty-picker" if="{{!tomatoSettings.exchangeItems || tomatoSettings.exchangeItems.length === 0}}">
+                <text class="empty-txt">暂无兑换商品，请在设置中添加</text>
+             </div>
+          </scroll>
+       </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import router from "@system.router";
+import vibrator from "@system.vibrator";
+import brightness from '@system.brightness';
+
+export default {
+  private: {
+    status: 'idle',
+    durations: ['1', '5', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55', '60', '90', '120'],
+    durationIndex: 5,
+    restDurations: ['1', '3', '5', '10', '15', '20', '25', '30'],
+    restDurationIndex: 2,
+    remainingTime: 1500,
+    totalTime: 1500,
+    restMinutes: 5,
+    uiInterval: null,
+    themeColor: 'orange',
+    themeHexColor: '#FF9F0A',
+    todayTomatoes: 0,
+    ownedTomatoes: 0,
+    modalVisible: false,
+    pickerVisible: false,
+    actionPopupVisible: false,
+    exchangePopupVisible: false,
+    tomatoSettings: {},
+    availableTasks: [],
+    selectedTask: null
+  },
+
+  computed: {
+    progressPercent() {
+      if (this.totalTime <= 0) return 0;
+      let p = ((this.totalTime - this.remainingTime) / this.totalTime) * 100;
+      if (this.status === 'idle') return 100;
+      return Math.min(100, Math.max(0, p));
+    },
+    pauseButtonText() {
+      if (this.status === 'paused') return '继续';
+      if (this.status === 'resting') return '暂停休息';
+      return '暂停';
+    }
+  },
+
+  onInit() {
+    const userInfo = this.$app.$def.globalData.userInfo;
+    if (userInfo && userInfo.settings) {
+      if (userInfo.settings.themeColor) {
+        this.themeColor = userInfo.settings.themeColor;
+        this.updateThemeHex();
+      }
+    }
+    this.loadStats();
+    this.syncWithGlobal();
+  },
+
+  updateThemeHex() {
+    const colors = {
+      'orange': '#FF9F0A',
+      'blue': '#4E81EE',
+      'green': '#A3FA00',
+      'purple': '#BF5AF2'
+    };
+    this.themeHexColor = colors[this.themeColor] || '#FF9F0A';
+  },
+
+  onShow() {
+    this.startUISync();
+    this.loadStats();
+    this.loadAvailableTasks();
+    const userInfo = this.$app.$def.globalData.userInfo;
+    if (userInfo && userInfo.settings) {
+        this.tomatoSettings = userInfo.settings.tomatoSettings || {};
+    }
+    // Apply keep-screen-on according to settings when page shows
+    try {
+      if (this.tomatoSettings && this.tomatoSettings.keepScreenOn) {
+        brightness.setKeepScreenOn({ keepScreenOn: true });
+      } else {
+        brightness.setKeepScreenOn({ keepScreenOn: false });
+      }
+    } catch (e) {
+      // ignore if brightness API unavailable
+    }
+  },
+
+  onHide() {
+    this.stopUISync();
+    // Restore screen default when leaving page
+    try {
+      brightness.setKeepScreenOn({ keepScreenOn: false });
+    } catch (e) {
+      // ignore
+    }
+  },
+
+  onDestroy() {
+    this.stopUISync();
+  },
+
+  syncWithGlobal() {
+    const globalTimer = this.$app.$def.globalData.tomatoTimer;
+    if (!globalTimer) return;
+    
+    this.status = globalTimer.status;
+    this.remainingTime = globalTimer.remainingTime;
+    this.totalTime = globalTimer.totalTime;
+    this.restMinutes = globalTimer.restMinutes || 5;
+    
+    if (this.status === 'idle') {
+      const mins = String(globalTimer.durationMinutes || 25);
+      const idx = this.durations.indexOf(mins);
+      if (idx > -1) this.durationIndex = idx;
+
+      const restMinsStr = String(this.restMinutes);
+      const rIdx = this.restDurations.indexOf(restMinsStr);
+      if (rIdx > -1) this.restDurationIndex = rIdx;
+    } else if (globalTimer.linkedTaskId) {
+      // 如果正在运行且有关联任务，同步显示
+      const userInfo = this.$app.$def.globalData.userInfo;
+      const task = (userInfo.todoList || []).find(t => t.id === globalTimer.linkedTaskId);
+      if (task) {
+          this.selectedTask = task;
+      }
+    }
+  },
+
+  loadAvailableTasks() {
+    const userInfo = this.$app.$def.globalData.userInfo;
+    this.availableTasks = (userInfo.todoList || []).filter(t => !t.completed);
+  },
+
+  showTaskPicker() {
+    this.vibrate();
+    this.loadAvailableTasks();
+    this.pickerVisible = true;
+  },
+
+  closePicker() {
+    this.pickerVisible = false;
+  },
+
+  onPickTask(task) {
+    this.vibrate();
+    this.selectedTask = task;
+    this.closePicker();
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  },
+
+  startUISync() {
+    this.stopUISync();
+    this.syncWithGlobal();
+    this.uiInterval = setInterval(() => {
+      this.syncWithGlobal();
+    }, 500);
+  },
+
+  stopUISync() {
+    if (this.uiInterval) {
+      clearInterval(this.uiInterval);
+      this.uiInterval = null;
+    }
+  },
+
+  loadStats() {
+    const userInfo = this.$app.$def.globalData.userInfo;
+    const today = new Date().toDateString();
+    
+    // 今日番茄数
+    if (userInfo.tomatoStats && userInfo.tomatoStats.date === today) {
+      this.todayTomatoes = userInfo.tomatoStats.count || 0;
+    } else {
+      this.todayTomatoes = 0;
+    }
+
+    // 独立存储番茄总数
+    this.ownedTomatoes = userInfo.tomatoCount || 0;
+  },
+
+  onDurationChange(e) {
+    this.vibrate();
+    this.durationIndex = e.newSelected;
+    const mins = parseInt(this.durations[this.durationIndex]);
+    const timer = this.$app.$def.globalData.tomatoTimer;
+    timer.durationMinutes = mins;
+    timer.totalTime = mins * 60;
+    timer.remainingTime = timer.totalTime;
+    this.syncWithGlobal();
+  },
+
+  onRestDurationChange(e) {
+    this.vibrate();
+    this.restDurationIndex = e.newSelected;
+    this.restMinutes = parseInt(this.restDurations[this.restDurationIndex]);
+    const timer = this.$app.$def.globalData.tomatoTimer;
+    timer.restMinutes = this.restMinutes;
+    this.syncWithGlobal();
+  },
+
+  startTimer() {
+    this.vibrate();
+    const mins = parseInt(this.durations[this.durationIndex]);
+    const taskId = this.selectedTask ? this.selectedTask.id : null;
+    this.$app.$def.startTomatoTimer(mins, taskId);
+    // If user enabled keepScreenOn, apply it when starting focus
+    try {
+      if (this.tomatoSettings && this.tomatoSettings.keepScreenOn) {
+        brightness.setKeepScreenOn({ keepScreenOn: true });
+      }
+    } catch (e) {
+      // ignore
+    }
+    this.syncWithGlobal();
+  },
+
+  togglePause() {
+    this.vibrate();
+    if (this.status === 'running' || this.status === 'resting') {
+      this.$app.$def.pauseTomatoTimer();
+    } else if (this.status === 'paused') {
+      this.$app.$def.startTomatoTimer();
+    }
+    this.syncWithGlobal();
+  },
+
+  handleSecondaryAction() {
+    this.vibrate();
+    if (this.status === 'resting') {
+      this.skipRest();
+    } else {
+      this.giveUp();
+    }
+  },
+
+  giveUp() {
+    this.modalVisible = true;
+  },
+
+  closeModal() {
+    this.vibrate();
+    this.modalVisible = false;
+  },
+
+  handleModalConfirm() {
+    this.vibrate();
+    this.modalVisible = false;
+    this.resetTimer();
+  },
+
+  skipRest() {
+    this.vibrate();
+    this.$app.$def.onTimerComplete();
+    this.syncWithGlobal();
+    prompt.showToast({ message: '休息已结束' });
+  },
+
+  startRest() {
+    this.vibrate();
+    const timer = this.$app.$def.globalData.tomatoTimer;
+    timer.status = 'resting';
+    this.$app.$def.startTomatoTimer();
+    this.syncWithGlobal();
+  },
+
+  openSettings() {
+    this.vibrate();
+    router.push({
+      uri: 'pages/TomatoSettings'
+    });
+  },
+
+  showTomatoActions() {
+    if (this.ownedTomatoes <= 0) {
+        prompt.showToast({ message: '还没有番茄，快去专注吧！' });
+        return;
+    }
+    this.vibrate();
+    this.actionPopupVisible = true;
+  },
+
+  closeActionPopup() {
+    this.actionPopupVisible = false;
+  },
+
+  eatTomato() {
+    this.vibrate();
+    if (this.ownedTomatoes < 1) return;
+    
+    const exp = parseInt(this.tomatoSettings.eatExp) || 10;
+    this.$app.$def.globalData.userInfo.tomatoCount--;
+    this.ownedTomatoes = this.$app.$def.globalData.userInfo.tomatoCount;
+    this.$app.$def.gainExp(exp);
+    this.$app.$def.addGrowthLog('tomato_eat', '食用番茄', `食用 1 个番茄，获得 ${exp} 经验`);
+    
+    prompt.showToast({ message: `食用成功！获得 ${exp} 经验` });
+    if (this.ownedTomatoes === 0) this.closeActionPopup();
+  },
+
+  sellTomato() {
+    this.vibrate();
+    if (this.ownedTomatoes < 1) return;
+
+    const price = parseInt(this.tomatoSettings.sellPrice) || 10;
+    this.$app.$def.globalData.userInfo.tomatoCount--;
+    this.ownedTomatoes = this.$app.$def.globalData.userInfo.tomatoCount;
+    this.$app.$def.addCoins(price);
+    this.$app.$def.addGrowthLog('tomato_sell', '出售番茄', `出售 1 个番茄，获得 ${price} 金币`);
+
+    prompt.showToast({ message: `出售成功！获得 ${price} 金币` });
+    if (this.ownedTomatoes === 0) this.closeActionPopup();
+  },
+
+  showExchangePopup() {
+    this.vibrate();
+    this.actionPopupVisible = false;
+    this.exchangePopupVisible = true;
+  },
+
+  closeExchangePopup() {
+    this.exchangePopupVisible = false;
+  },
+
+  doExchange(item) {
+    this.vibrate();
+    if (this.ownedTomatoes < item.cost) {
+        prompt.showToast({ message: '番茄数量不足' });
+        return;
+    }
+
+    this.$app.$def.globalData.userInfo.tomatoCount -= item.cost;
+    this.ownedTomatoes = this.$app.$def.globalData.userInfo.tomatoCount;
+    this.$app.$def.addToInventory(item.name, 1);
+    this.$app.$def.addGrowthLog('tomato_exchange', '番茄兑换', `消耗 ${item.cost} 番茄，兑换了 ${item.name}`);
+    
+    prompt.showToast({ message: `兑换成功！${item.name} 已放入仓库` });
+    this.$app.$def.saveUserData();
+    if (this.ownedTomatoes < 1) this.closeExchangePopup();
+  },
+
+  resetTimer() {
+    this.selectedTask = null;
+    this.$app.$def.resetTomatoTimer();
+    // Ensure screen keep-on is cleared on reset
+    try {
+      brightness.setKeepScreenOn({ keepScreenOn: false });
+    } catch (e) {
+      // ignore
+    }
+    this.syncWithGlobal();
+  },
+
+  formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  },
+
+  vibrate() {
+    const globalData = this.$app.$def.globalData;
+    if (globalData && globalData.userInfo && globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; width: 100%; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+
+  /* Header */
+  .header-row { flex-direction: row; justify-content: flex-start; align-items: center; margin-bottom: 20px; padding-left: 8px; }
+  .page-title { font-size: 32px; color: #fff; font-weight: bold; }
+
+  /* Timer Main Card (Ref: Screenshot) */
+  .timer-main-card {
+    background-color: #1C1C1E;
+    border-radius: 32px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .timer-display-box {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 32px;
+  }
+
+  .time-nums { font-size: 64px; font-weight: bold; color: #fff; font-family: monospace; }
+
+  .status-box { height: 28px; justify-content: flex-start; }
+  .status-txt { color: #8E8E93; font-size: 26px; font-weight: bold; padding-left: 2px;}
+
+  .progress-container {
+    width: 100%;
+    height: 30px;
+    margin-bottom: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .progress-bg {
+    width: 100%;
+    height: 30px;
+    background-color: #000;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 30px;
+    border-radius: 10px;
+  }
+
+  /* Controls Container */
+  .control-container { flex-direction: column; width: 100%; }
+  
+  /* Card Group Style (Ref: TaskCreator.ux) */
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    padding: 0 4px;
+  }
+  
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+  .mt-24 { margin-top: 24px; }
+
+  /* Pill Selectors (Ref: TaskCreator.ux) */
+  .value-pill { 
+    padding: 6px 20px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+  }
+  
+  .pill-text { 
+      color: #fff; 
+      font-size: 24px; 
+      font-weight: bold; 
+  }
+
+  .time-picker-pill {
+      width: 160px;
+      height: 48px;
+      border-radius: 16px;
+      background-color: #2C2C2E;
+      color: #fff;
+      font-size: 24px;
+      selected-font-size: 24px;
+      selected-color: #fff;
+      text-align: center;
+  }
+
+  /* Buttons */
+  .btns-group { flex-direction: column; width: 100%; margin-top: 10px; }
+  .main-btn { 
+    width: 100%; 
+    height: 72px; 
+    border-radius: 26px; 
+    justify-content: center; 
+    align-items: center; 
+  }
+  .main-btn-txt { color: #fff; font-size: 28px; font-weight: bold; }
+
+  .dual-btns { flex-direction: row; justify-content: space-between; width: 100%; }
+  .sub-btn { 
+    flex: 1; 
+    height: 72px; 
+    border-radius: 26px; 
+    justify-content: center; 
+    align-items: center; 
+    border: 2px solid rgba(255,255,255,0.05); 
+  }
+  .mr-12 { margin-right: 12px; }
+
+  .sub-btn-txt { font-size: 28px; font-weight: bold; color: #fff; }
+
+  .bg-dark { background-color: #1C1C1E; }
+  .bg-red-dim { 
+    background-color: rgba(255, 69, 58, 0.1); 
+    border: 2px solid rgba(255, 69, 58, 0.3);
+  }
+  .bg-blue-dim { 
+    background-color: rgba(78, 129, 238, 0.1); 
+    border: 2px solid rgba(78, 129, 238, 0.3);
+  }
+  .c-red { color: #FF453A; }
+  .c-blue { color: #4E81EE; }
+
+  .bg-red { background-color: #FF453A; }
+
+  /* Modal Styles (Ref: Settings Style) */
+  .modal-mask {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center; align-items: center;
+    z-index: 1000;
+  }
+  .modal-box {
+    width: 360px;
+    background-color: #1C1C1E;
+    border-radius: 32px;
+    padding: 32px;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #2C2C2E;
+  }
+  .modal-title { font-size: 36px; font-weight: bold; margin-bottom: 16px; }
+  .modal-content { font-size: 26px; color: #8E8E93; text-align: center; margin-bottom: 32px; line-height: 36px; }
+  .modal-btns { flex-direction: row; width: 100%; justify-content: center; }
+  .modal-btn {
+    flex: 1; height: 72px; justify-content: center; align-items: center;
+    border-radius: 20px; margin: 0 8px;
+  }
+  .modal-cancel { background-color: #2C2C2E; }
+  .modal-confirm { }
+  
+  .modal-btn-txt { font-size: 26px; font-weight: bold; }
+  .modal-cancel-txt { color: #8E8E93; }
+  .modal-confirm-txt { color: #fff; }
+
+  /* Stats */
+  .footer-stats { margin-top: 30px; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .stats-badge { 
+    flex-direction: row; 
+    align-items: center; 
+    background-color: rgba(255, 255, 255, 0.05); 
+    padding: 12px 24px; 
+    border-radius: 24px; 
+    border: 1px solid rgba(255, 255, 255, 0.08); 
+  }
+  .stats-icon-img { width: 24px; height: 24px; margin-right: 10px; }
+  .stats-val { color: rgba(255,255,255,0.7); font-size: 20px; font-weight: bold; }
+
+  .settings-btn-inline {
+    margin-left: 12px;
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    align-items: center;
+  }
+  .settings-icon-sm { width: 24px; height: 24px; opacity: 0.6; }
+
+  .action-popup-height { height: 50%; }
+  .action-info { width: 100%; padding: 10px 0 20px 0; margin-bottom: 20px; }
+  .action-count-tip { color: #8E8E93; font-size: 24px; width: 100%; text-align: center; }
+
+  .action-list { flex-direction: column; width: 100%; }
+  .action-item { 
+    width: 100%; height: 100px; background-color: #2C2C2E; border-radius: 20px;
+    margin-bottom: 12px; flex-direction: column; justify-content: center; align-items: center;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .action-item-name { color: #fff; font-size: 30px; font-weight: bold; }
+  .action-item-desc { color: #8E8E93; font-size: 20px; margin-top: 4px; }
+
+  .exchange-btn { padding: 8px 20px; border-radius: 12px; }
+  .exchange-btn-txt { color: #fff; font-size: 22px; font-weight: bold; }
+  .bg-gray { background-color: #3A3A3C; }
+
+  .spacer { height: 100px; }
+
+  /* Theme colors */
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  /* Balance Card Styles (Ref: Shop/index.ux) */
+  .balance-card { 
+    background-color: #1C1C1E; padding: 20px 24px; border-radius: 32px; 
+    flex-direction: row; justify-content: space-between; align-items: center; 
+    margin-bottom: 24px; border: 2px solid rgba(255, 255, 255, 0.05);
+    width: 100%;
+  }
+  .balance-label { color: #8E8E93; font-size: 24px; }
+  .balance-row { flex-direction: row; align-items: center; }
+  .coin-icon-circle { width: 32px; height: 32px; justify-content: center; align-items: center; margin-right: 8px; }
+  .tomato-bg { background-color: transparent; }
+  .mini-fq-icon { width: 24px; height: 24px; }
+  .balance-val { font-size: 32px; font-weight: bold; }
+
+  /* Picker Styles */
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 70%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .item-name { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-desc-short { font-size: 18px; color: #8E8E93; lines: 1; text-overflow: ellipsis; margin-top: 4px; }
+  .item-type-tag { font-size: 16px; padding: 2px 8px; border-radius: 6px; color: #fff; font-weight: bold; flex-shrink: 0; }
+  
+  .pill-gray { background-color: rgba(142, 142, 147, 0.15); }
+  .empty-picker { width: 100%; padding: 60px; justify-content: center; align-items: center; }
+  .empty-txt { color: #48484A; font-size: 24px; }
+</style>

@@ -1,0 +1,568 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="creator-area">
+    <scroll id="formScroll" class="form-box" scroll-y="true" bounces="true">
+      <div class="header-section">
+          <text class="page-main-title">{{editingIndex >= 0 ? '编辑配方' : '发布新配方'}}</text>
+      </div>
+
+      <!-- Basic Info -->
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}" static>基础信息</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('recipeName')">
+            <text class="control-label" static>配方名称</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newRecipe.name}}</text>
+            </div>
+          </div>
+
+          <div class="control-row" onclick="toggleType">
+            <text class="control-label" static>合成方式</text>
+            <div class="value-pill {{getTypePillClass()}}">
+               <text class="pill-text {{getTypeTextClass()}}">{{getTypeLabel()}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Basic Info (Single Target) -->
+      <div class="card-group" if="{{newRecipe.type !== 'trade_up'}}">
+        <text class="group-title {{'c-'+themeColor}}" static>合成产物</text>
+        <div class="control-card">
+          <div class="control-row" onclick="showTargetPicker">
+            <text class="control-label" static>产出物品</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newRecipe.targetItem || '选择商店商品'}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trade Up Pool -->
+      <div class="card-group" if="{{newRecipe.type === 'trade_up'}}">
+        <div class="group-header">
+           <text class="group-title {{'c-'+themeColor}}" static>汰换奖池 (产出其一)</text>
+           <text class="add-material-btn {{'c-'+themeColor}}" onclick="addReward" static>添加产物 +</text>
+        </div>
+        
+        <div class="control-card mb-12" for="(rIdx, reward) in newRecipe.rewards">
+           <div class="control-row mb-8" onclick="showRewardPicker(rIdx)">
+              <text class="control-label" static>可能产出 {{rIdx + 1}}</text>
+              <div class="value-pill pill-gray">
+                 <text class="pill-text">{{reward.name || '点击选择道具'}}</text>
+              </div>
+           </div>
+           <div class="control-row mb-8">
+              <div class="label-box" onclick="toggleRewardMode(rIdx)">
+                 <text class="control-label small-label">{{reward.useRate ? '概率' : '权重'}}</text>
+              </div>
+              <div class="value-pill pill-gray" onclick="openKeyboard('rewardWeight-' + rIdx)">
+                 <text class="pill-text {{keyboardTarget === 'rewardWeight-' + rIdx ? 'c-orange' : ''}}">{{reward.weight}}{{reward.useRate ? '%' : ''}}</text>
+              </div>
+           </div>
+           <div class="remove-row" onclick="removeReward(rIdx)">
+              <text class="remove-txt" static>移除此产出</text>
+           </div>
+        </div>
+        
+        <div class="empty-materials" if="{{!newRecipe.rewards || newRecipe.rewards.length === 0}}">
+           <text class="empty-txt">未添加任何产出物品</text>
+        </div>
+      </div>
+
+      <!-- Probability Setting -->
+      <div class="card-group" if="{{newRecipe.type === 'probability'}}">
+        <text class="group-title {{'c-'+themeColor}}" static>成功率 (%)</text>
+        <div class="control-card">
+           <div class="control-row" onclick="openKeyboard('rate')">
+            <text class="control-label" static>成功概率</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newRecipe.rate}}%</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Materials List -->
+      <div class="card-group">
+        <div class="group-header">
+           <text class="group-title {{'c-'+themeColor}}" static>所需材料</text>
+           <text class="add-material-btn {{'c-'+themeColor}}" onclick="addMaterial" static>添加材料 +</text>
+        </div>
+        
+        <div class="control-card mb-12" for="(mIdx, material) in newRecipe.materials">
+           <div class="control-row mb-8" onclick="showMaterialPicker(mIdx)">
+              <text class="control-label" static>材料 {{mIdx + 1}}</text>
+              <div class="value-pill pill-gray">
+                 <text class="pill-text">{{material.name || '点击选择道具'}}</text>
+              </div>
+           </div>
+           <div class="control-row">
+              <div class="count-box" onclick="changeMaterialCount(mIdx, -1)">
+                 <text class="count-btn">-</text>
+              </div>
+              <text class="material-count">数量: {{material.count}}</text>
+              <div class="count-box" onclick="changeMaterialCount(mIdx, 1)">
+                 <text class="count-btn">+</text>
+              </div>
+              <text class="remove-btn" onclick="removeMaterial(mIdx)">移除</text>
+           </div>
+        </div>
+        
+        <div class="empty-materials" if="{{newRecipe.materials.length === 0}}">
+           <text class="empty-txt">未添加任何材料</text>
+        </div>
+      </div>
+
+      <div class="save-section {{'bg-'+themeColor}}" onclick="emitSave">
+          <text class="save-btn-txt">{{editingIndex >= 0 ? '保存配方' : '发布配方'}}</text>
+      </div>
+
+      <div class="delete-section" if="{{editingIndex >= 0}}" onclick="emitDelete">
+          <text class="delete-btn-txt">删除此配方</text>
+      </div>
+      
+      <div class="spacer-lg"></div>
+    </scroll>
+
+    <!-- Target/Material Picker Overlay -->
+    <div class="picker-overlay" if="{{pickerVisible}}" onclick="closePicker">
+       <div class="picker-content" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title">{{pickerMode === 'target' ? '选择产物' : '选择材料'}}</text>
+             </div>
+             <div class="picker-item-box" for="{{(idx, item) in shopItemsList}}" tid="name" onclick="onPickItem(item)">
+                <div class="picker-item-left">
+                   <text class="item-name">{{item.name}}</text>
+                   <text class="item-desc-short" if="{{item.desc}}">{{item.desc}}</text>
+                </div>
+                <text class="item-type-tag {{item.type==='gacha'?'bg-purple':'bg-blue'}}">{{item.type==='gacha'?'盲盒':'道具'}}</text>
+             </div>
+             <div class="empty-picker" if="{{!shopItemsList || shopItemsList.length === 0}}">
+                <text class="empty-txt">商店暂无商品</text>
+             </div>
+          </scroll>
+       </div>
+    </div>
+
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="{{keyboardType}}"
+      maxlength="8"
+      vibratemode="short"
+      screentype="{{screenType}}"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+import prompt from "@system.prompt";
+
+export default {
+  props: [
+    'editingIndex',
+    'initialData',
+    'shopItemsList',
+    'themeColor'
+  ],
+  data: {
+    newRecipe: {
+      name: '新配方',
+      targetItem: '',
+      type: 'fixed',
+      rate: 100,
+      materials: [],
+      rewards: [] // For trade_up mode
+    },
+    hideKeyboard: true,
+    keyboardType: "QWERTY",
+    screenType: "rect",
+    keyboardTarget: '',
+    pickerVisible: false,
+    pickerMode: 'target', // 'target' or 'material'
+    currentMaterialIndex: -1
+  },
+
+  onInit() {
+    if (this.initialData) {
+        this.newRecipe = JSON.parse(JSON.stringify(this.initialData));
+    }
+  },
+
+  vibrate() {
+    vibrator.vibrate({ mode: 'short' });
+  },
+
+  toggleType() {
+    this.vibrate();
+    const types = ['fixed', 'probability', 'trade_up'];
+    let idx = types.indexOf(this.newRecipe.type);
+    idx = (idx + 1) % types.length;
+    this.newRecipe.type = types[idx];
+    
+    if (this.newRecipe.type === 'fixed') this.newRecipe.rate = 100;
+    else if (this.newRecipe.type === 'probability' && this.newRecipe.rate === 100) this.newRecipe.rate = 50;
+    else if (this.newRecipe.type === 'trade_up' && (!this.newRecipe.rewards || this.newRecipe.rewards.length === 0)) {
+        this.newRecipe.rewards = [{ name: '', weight: 100 }];
+    }
+  },
+
+  getTypeLabel() {
+    const map = { fixed: '固定合成', probability: '概率合成', trade_up: '汰换合约' };
+    return map[this.newRecipe.type] || '未知';
+  },
+
+  getTypePillClass() {
+    const map = { fixed: 'pill-blue', probability: 'pill-purple', trade_up: 'pill-orange' };
+    return map[this.newRecipe.type] || 'pill-gray';
+  },
+
+  getTypeTextClass() {
+    const map = { fixed: 'c-blue', probability: 'c-purple', trade_up: 'c-orange' };
+    return map[this.newRecipe.type] || 'c-gray';
+  },
+
+  openKeyboard(target) {
+    this.vibrate();
+    this.keyboardTarget = target;
+    this.keyboardType = (target === 'rate' || target.startsWith('rewardWeight-')) ? 'number' : 'QWERTY';
+    this.hideKeyboard = false;
+  },
+
+  closeKeyboard() {
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+  },
+
+  onDelete() {
+    this.vibrate();
+    if (this.keyboardTarget === 'recipeName') {
+       this.newRecipe.name = this.newRecipe.name.slice(0, -1);
+    } else if (this.keyboardTarget === 'rate') {
+       let str = String(this.newRecipe.rate);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           if (next === '' || next === '.') this.newRecipe.rate = 0;
+           else this.newRecipe.rate = next;
+       }
+    } else if (this.keyboardTarget.startsWith('rewardWeight-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       let str = String(this.newRecipe.rewards[idx].weight);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           if (next === '' || next === '.') this.newRecipe.rewards[idx].weight = 0;
+           else this.newRecipe.rewards[idx].weight = next;
+           this.newRecipe.rewards.splice(idx, 1, this.newRecipe.rewards[idx]);
+       }
+    }
+  },
+
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+    if (this.keyboardTarget === 'recipeName') {
+       this.newRecipe.name += content;
+    } else if (this.keyboardTarget === 'rate') {
+       let str = String(this.newRecipe.rate);
+       if (content === '.' && str.includes('.')) return;
+       let next = (str === '0' && content !== '.') ? content : str + content;
+       
+       if (content !== '.') {
+         let val = parseFloat(next);
+         if (!isNaN(val) && val > 100) next = "100";
+       }
+       this.newRecipe.rate = next;
+    } else if (this.keyboardTarget.startsWith('rewardWeight-')) {
+       const idx = parseInt(this.keyboardTarget.split('-')[1]);
+       let str = String(this.newRecipe.rewards[idx].weight);
+       if (content === '.' && str.includes('.')) return;
+       let next = (str === '0' && content !== '.') ? content : str + content;
+       
+       this.newRecipe.rewards[idx].weight = next;
+       this.newRecipe.rewards.splice(idx, 1, this.newRecipe.rewards[idx]);
+    }
+  },
+
+  addMaterial() {
+    this.vibrate();
+    this.newRecipe.materials.push({ name: '', count: 1 });
+  },
+
+  removeMaterial(idx) {
+    this.vibrate();
+    this.newRecipe.materials.splice(idx, 1);
+  },
+
+  changeMaterialCount(idx, dir) {
+    this.vibrate();
+    const m = this.newRecipe.materials[idx];
+    m.count += dir;
+    if (m.count < 1) m.count = 1;
+    this.newRecipe.materials.splice(idx, 1, m);
+  },
+
+  showTargetPicker() {
+    this.vibrate();
+    this.pickerMode = 'target';
+    this.pickerVisible = true;
+  },
+
+  showMaterialPicker(mIdx) {
+    this.vibrate();
+    this.pickerMode = 'material';
+    this.currentMaterialIndex = mIdx;
+    this.pickerVisible = true;
+  },
+
+  showRewardPicker(rIdx) {
+    this.vibrate();
+    this.pickerMode = 'reward';
+    this.currentMaterialIndex = rIdx; // Reuse variable for index
+    this.pickerVisible = true;
+  },
+
+  closePicker() {
+    this.pickerVisible = false;
+  },
+
+  onPickItem(item) {
+    this.vibrate();
+    if (this.pickerMode === 'target') {
+        this.newRecipe.targetItem = item.name;
+    } else if (this.pickerMode === 'material') {
+        this.newRecipe.materials[this.currentMaterialIndex].name = item.name;
+    } else if (this.pickerMode === 'reward') {
+        this.newRecipe.rewards[this.currentMaterialIndex].name = item.name;
+    }
+    this.closePicker();
+  },
+
+  addReward() {
+    this.vibrate();
+    if (!this.newRecipe.rewards) this.newRecipe.rewards = [];
+    this.newRecipe.rewards.push({ name: '', weight: 100, useRate: false });
+  },
+
+  toggleRewardMode(idx) {
+    this.vibrate();
+    const r = this.newRecipe.rewards[idx];
+    r.useRate = !r.useRate;
+    this.newRecipe.rewards.splice(idx, 1, r);
+  },
+
+  removeReward(idx) {
+    this.vibrate();
+    this.newRecipe.rewards.splice(idx, 1);
+  },
+
+  changeRewardWeight(idx, dir) {
+    this.vibrate();
+    const r = this.newRecipe.rewards[idx];
+    r.weight += dir;
+    if (r.weight < 1) r.weight = 1;
+    this.newRecipe.rewards.splice(idx, 1, r);
+  },
+
+  emitSave() {
+    this.vibrate();
+    if (!this.newRecipe.name.trim()) { prompt.showToast({ message: '请输入配方名称' }); return; }
+    
+    if (this.newRecipe.type === 'trade_up') {
+        if (!this.newRecipe.rewards || this.newRecipe.rewards.length === 0) {
+            prompt.showToast({ message: '请至少添加一个产物' }); return;
+        }
+        for (const r of this.newRecipe.rewards) {
+            if (!r.name) { prompt.showToast({ message: '请完整选择产物名称' }); return; }
+        }
+    } else {
+        if (!this.newRecipe.targetItem) { prompt.showToast({ message: '请选择合成产物' }); return; }
+    }
+
+    if (this.newRecipe.materials.length === 0) { prompt.showToast({ message: '请至少添加一个材料' }); return; }
+    
+    // 检查材料是否完整
+    for (const m of this.newRecipe.materials) {
+        if (!m.name) { prompt.showToast({ message: '请完整填写材料名称' }); return; }
+    }
+
+    this.$emit('save', { recipe: this.newRecipe });
+  },
+
+  emitDelete() {
+    this.vibrate();
+    this.$emit('delete', { index: this.editingIndex });
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  }
+}
+</script>
+
+<style>
+  .creator-area { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background-color: #000; flex-direction: column; z-index: 100; 
+  }
+  
+  .header-section { margin-bottom: 20px; padding-left: 8px; margin-top: 10px; }
+  .page-main-title { font-size: 32px; font-weight: bold; color: #fff; }
+
+  .form-box { flex: 1; flex-direction: column; padding: 16px; }
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  
+  .group-header { flex-direction: row; justify-content: space-between; align-items: center; padding-right: 8px; margin-bottom: 12px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+  .add-material-btn { font-size: 20px; font-weight: bold; margin-bottom: 12px; }
+
+  .bg-red { background-color: #FF3B30; }
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-pink { background-color: #FF2D55; }
+  .bg-yellow { background-color: #FFCC00; }
+  .bg-teal { background-color: #30B0C7; }
+  .bg-indigo { background-color: #5856D6; }
+  .bg-brown { background-color: #A2845E; }
+  .bg-gray { background-color: #8E8E93; }
+  .bg-cyan { background-color: #32ADE6; }
+
+  .c-red { color: #FF453A; }
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-gold { color: #FFD60A; }
+  
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    background-color: transparent;
+    padding: 0 4px;
+  }
+  
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+  .mb-8 { margin-bottom: 8px; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+  }
+  .pill-gray { background-color: rgba(142, 142, 147, 0.15); }
+  .pill-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .pill-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+  .pill-red { background-color: rgba(255, 69, 58, 0.15); }
+  
+  .pill-text { 
+    color: #fff; 
+    font-size: 24px; 
+    text-align: center; 
+    font-weight: bold; 
+    lines: 1; 
+    text-overflow: ellipsis; 
+  }
+
+  .small-label { font-size: 28px; color: #fff; }
+  .count-row { flex-direction: row; align-items: center; }
+  .count-box { width: 44px; height: 44px; border-radius: 12px; background-color: #2C2C2E; justify-content: center; align-items: center; }
+  .count-btn { color: #fff; font-size: 28px; font-weight: bold; }
+  .material-count { color: #fff; font-size: 24px; font-weight: bold; margin: 0 16px; }
+  .remove-btn { color: #FF453A; font-size: 22px; font-weight: bold; margin-left: 12px; }
+  .remove-row { width: 100%; justify-content: center; align-items: center; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+  .remove-txt { font-size: 20px; color: #FF453A; opacity: 0.8; }
+  .switch-icon { font-size: 18px; color: #8E8E93; margin-left: 4px; }
+
+  .empty-materials { padding: 30px; align-items: center; justify-content: center; }
+  .empty-txt { color: #48484A; font-size: 24px; }
+
+  .save-section {
+    margin-top: 20px;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .save-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .delete-section {
+    height: 72px;
+    border-radius: 26px;
+    border: 2px solid rgba(255, 69, 58, 0.3);
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 69, 58, 0.1);
+  }
+  .delete-btn-txt { font-size: 28px; color: #FF453A; font-weight: bold; }
+  
+  .spacer-lg { height: 80px; }
+
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 70%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .item-name { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-desc-short { font-size: 18px; color: #8E8E93; lines: 1; text-overflow: ellipsis; margin-top: 4px; }
+  .item-type-tag { font-size: 16px; padding: 2px 8px; border-radius: 6px; color: #fff; font-weight: bold; flex-shrink: 0; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-blue { background-color: #0A84FF; }
+
+  .empty-picker { width: 100%; padding: 60px; justify-content: center; align-items: center; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+</style>

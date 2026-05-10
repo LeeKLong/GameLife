@@ -1,0 +1,501 @@
+<template>
+  <div class="page-container">
+    <div class="content-wrapper">
+      <scroll class="scroll-view" scroll-y="true" bounces="true">
+        <!-- New Header -->
+        <div class="settings-header">
+           <image class="app-logo" src="/common/logo.png"></image>
+           <text class="app-name">GameLife</text>
+           <text class="app-version">v2.0.0</text>
+        </div>
+
+        <!-- Author & Sponsor Section (New) -->
+        <text class="section-title">关于作者</text>
+        
+        <!-- LeeKLong -->
+        <div class="author-card">
+           <image class="author-avatar" src="/common/LeeKLong.png"></image>
+           <div class="author-info">
+              <text class="author-name">LeeKLong</text>
+              <text class="author-bio">业余设计师</text>
+           </div>
+        </div>
+
+        <!-- Gemini (哈基米) -->
+        <div class="author-card">
+           <image class="author-avatar" src="/common/哈基米.png"></image>
+           <div class="author-info">
+              <text class="author-name">哈基米</text>
+              <text class="author-bio">Google训练的大型语言模型</text>
+           </div>
+        </div>
+        
+        <div class="sponsor-card">
+           <text class="card-title">赞助作者</text>
+           <image class="qr-image" src="/common/zzm.png"></image>
+           <text class="sponsor-desc">感谢您的支持！</text>
+        </div>
+
+        <!-- System Settings -->
+        <text class="section-title mt-20">系统</text>
+        
+        <div class="setting-item" onclick="toggleHaptics">
+          <text class="item-title">触感反馈</text>
+          <div class="switch-pill {{settings.enableHaptics ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.enableHaptics ? 'c-'+settings.themeColor : ''}}">{{settings.enableHaptics ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="setting-item" onclick="toggleDateCard">
+          <text class="item-title">显示日期卡片</text>
+          <div class="switch-pill {{settings.showDateCard ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.showDateCard ? 'c-'+settings.themeColor : ''}}">{{settings.showDateCard ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <!-- Customization -->
+        <text class="section-title mt-20">个性化</text>
+        
+        <div class="setting-item-col">
+          <text class="item-title mb-12">主题色</text>
+          <div class="theme-row">
+             <div class="theme-circle t-blue {{settings.themeColor==='blue'?'t-active':''}}" onclick="setTheme('blue')">
+               <text class="check-mark" if="{{settings.themeColor==='blue'}}">✓</text>
+             </div>
+             <div class="theme-circle t-orange {{settings.themeColor==='orange'?'t-active':''}}" onclick="setTheme('orange')">
+               <text class="check-mark" if="{{settings.themeColor==='orange'}}">✓</text>
+             </div>
+             <div class="theme-circle t-green {{settings.themeColor==='green'?'t-active':''}}" onclick="setTheme('green')">
+               <text class="check-mark" if="{{settings.themeColor==='green'}}">✓</text>
+             </div>
+             <div class="theme-circle t-purple {{settings.themeColor==='purple'?'t-active':''}}" onclick="setTheme('purple')">
+               <text class="check-mark" if="{{settings.themeColor==='purple'}}">✓</text>
+             </div>
+          </div>
+        </div>
+
+        <!-- Gameplay Settings -->
+        <text class="section-title mt-20">玩法</text>
+        
+        <div class="setting-item" onclick="toggleDeletePenalty">
+          <div class="item-col">
+            <text class="item-title">删除任务惩罚</text>
+            <text class="item-sub">删除未完成任务时扣除金币</text>
+          </div>
+          <div class="switch-pill {{settings.deletePenalty ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.deletePenalty ? 'c-'+settings.themeColor : ''}}">{{settings.deletePenalty ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="setting-item" onclick="toggleRememberConfig">
+          <div class="item-col">
+            <text class="item-title">记住上次配置</text>
+            <text class="item-sub">发布页保存上次填写的内容</text>
+          </div>
+          <div class="switch-pill {{settings.rememberLastConfig ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.rememberLastConfig ? 'c-'+settings.themeColor : ''}}">{{settings.rememberLastConfig ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="setting-item" onclick="toggleAchievementRewards">
+          <div class="item-col">
+            <text class="item-title">启用成就奖励</text>
+            <text class="item-sub">关闭后达成成就将不再发放金币/经验</text>
+          </div>
+          <div class="switch-pill {{settings.enableAchievementRewards !== false ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.enableAchievementRewards !== false ? 'c-'+settings.themeColor : ''}}">{{settings.enableAchievementRewards !== false ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
+        <div class="setting-item" onclick="gotoBankSettings">
+          <div class="item-col">
+            <text class="item-title">银行机制调整</text>
+            <text class="item-sub">设置贷款、利率和退货规则</text>
+          </div>
+          <text class="arrow">›</text>
+        </div>
+
+        <div class="setting-item" onclick="gotoPenaltySettings">
+          <div class="item-col">
+            <text class="item-title">委托惩罚机制调整</text>
+            <text class="item-sub">设置逾期扣除系数与独立设置开关</text>
+          </div>
+          <text class="arrow">›</text>
+        </div>
+
+        <!-- Data Management -->
+        <text class="section-title mt-20">数据管理</text>
+
+        <div class="setting-item danger" onclick="resetData">
+          <text class="item-title danger-text">重置所有数据</text>
+          <text class="item-sub danger-sub">不可恢复</text>
+        </div>
+        
+        <text class="footer-note">2026/3/13发布，免费快应用不可倒卖</text>
+        <div class="spacer"></div>
+      </scroll>
+    </div>
+
+    <!-- Lightweight Modal -->
+    <div class="modal-mask" if="{{modalVisible}}">
+      <div class="modal-box">
+        <text class="modal-title {{'c-'+settings.themeColor}}">{{modalTitle}}</text>
+        <text class="modal-content">{{modalContent}}</text>
+        <div class="modal-btns">
+          <div class="modal-btn cancel" onclick="closeModal" if="{{modalType==='reset'}}">
+            <text class="btn-txt cancel-txt">取消</text>
+          </div>
+          <div class="modal-btn confirm {{'bg-'+settings.themeColor}}" onclick="handleModalConfirm">
+            <text class="btn-txt confirm-txt">{{modalConfirmText}}</text>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import router from "@system.router";
+import vibrator from "@system.vibrator";
+
+export default {
+  data: {
+    settings: {
+      enableHaptics: true,
+      deletePenalty: true,
+      showDateCard: true,
+      themeColor: 'blue'
+    },
+    modalVisible: false,
+    modalTitle: '',
+    modalContent: '',
+    modalConfirmText: '确定',
+    modalType: '' 
+  },
+  
+  onInit() {
+    this.refreshSettings();
+    // 同时也监听异步就绪，确保从其他页面切回来或冷启动时数据是最新的
+    this.$app.$def.onDataReady(() => {
+        this.refreshSettings();
+    });
+  },
+  
+  refreshSettings() {
+    const globalData = this.$app.$def.globalData;
+    if (globalData && globalData.userInfo) {
+       // Defaults
+       const defaults = { 
+           enableHaptics: true, 
+           deletePenalty: true, 
+           showDateCard: true,
+           themeColor: 'blue',
+           rememberLastConfig: false
+       };
+       const userSettings = globalData.userInfo.settings || {};
+       
+       // Legacy check
+       if (userSettings.enableHaptics === undefined && globalData.userInfo.enableHaptics !== undefined) {
+           userSettings.enableHaptics = globalData.userInfo.enableHaptics;
+       }
+       
+       this.settings = { ...defaults, ...userSettings };
+    }
+  },
+  
+  saveSettings() {
+    const appDef = this.$app.$def;
+    if (!appDef.globalData.userInfo.settings) appDef.globalData.userInfo.settings = {};
+    
+    // Create a new settings object to avoid reference issues
+    const newSettings = { ...this.settings };
+    appDef.globalData.userInfo.settings = newSettings;
+    appDef.globalData.userInfo.enableHaptics = newSettings.enableHaptics;
+    
+    // Also update themeColor at the top level if that's where other pages look
+    appDef.globalData.userInfo.themeColor = newSettings.themeColor;
+    
+    appDef.saveUserData();
+  },
+
+  vibrate() {
+    if (this.settings.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  toggleHaptics() {
+    this.settings.enableHaptics = !this.settings.enableHaptics;
+    this.saveSettings();
+    if (this.settings.enableHaptics) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+  
+  toggleDeletePenalty() {
+    this.vibrate();
+    this.settings.deletePenalty = !this.settings.deletePenalty;
+    this.saveSettings();
+  },
+
+  toggleRememberConfig() {
+    this.vibrate();
+    this.settings.rememberLastConfig = !this.settings.rememberLastConfig;
+    this.saveSettings();
+  },
+
+  toggleDateCard() {
+    this.vibrate();
+    this.settings.showDateCard = !this.settings.showDateCard;
+    this.saveSettings();
+  },
+
+  toggleAchievementRewards() {
+    this.vibrate();
+    if (this.settings.enableAchievementRewards === undefined) {
+      this.settings.enableAchievementRewards = true;
+    }
+    this.settings.enableAchievementRewards = !this.settings.enableAchievementRewards;
+    this.saveSettings();
+  },
+  
+  setTheme(color) {
+      this.vibrate();
+      this.settings.themeColor = color;
+      this.saveSettings();
+  },
+
+  gotoBankSettings() {
+      this.vibrate();
+      router.push({ uri: 'pages/BankSettings' });
+  },
+
+  gotoPenaltySettings() {
+      this.vibrate();
+      router.push({ uri: 'pages/PenaltySettings' });
+  },
+
+  resetData() {
+    this.vibrate();
+    this.modalTitle = '警告';
+    this.modalContent = '确定要重置所有数据吗？\n这将清空等级、金币和任务记录，且无法恢复！';
+    this.modalConfirmText = '确定重置';
+    this.modalType = 'reset';
+    this.modalVisible = true;
+  },
+  
+  closeModal() {
+    this.vibrate();
+    this.modalVisible = false;
+  },
+
+  handleModalConfirm() {
+    this.vibrate();
+    this.closeModal();
+    if (this.modalType === 'reset') {
+        this.performReset();
+    }
+  },
+  
+  performReset() {
+    const appDef = this.$app.$def;
+    appDef.globalData.userInfo = {
+        level: 1, currentExp: 0, nextLevelExp: 100, coins: 0,
+        attributes: { strength: 0, intelligence: 0, charm: 0 },
+        inventory: [], exchangedSteps: 0, lastLoginDate: new Date().toDateString(),
+        
+        settings: { enableHaptics: true, deletePenalty: true, showDateCard: true, themeColor: 'blue' },
+        
+        totalCoins: 0,
+        completedTaskCount: 0,
+        unlockedAchievements: [],
+        
+        todoList: [
+            {
+              id: 1,
+              title: '欢迎来到 GameLife',
+              importance: '普通',
+              rewardExp: 50,
+              rewardCoins: 100,
+              goldMode: 'fixed',
+              frequency: '单次',
+              deadline: '不限',
+              completed: false,
+              attrType: 'charm',
+              attrVal: 1,
+              rewardItem: '无'
+            }
+        ], 
+        activeBuffs: [], 
+        shopItems: appDef.globalData.userInfo.shopItems
+    };
+    appDef.saveUserData();
+    
+    prompt.showToast({ message: '数据已重置' });
+    router.replace({ uri: 'pages/Todo' });
+  }
+}
+</script>
+
+<style>
+  .page-container { 
+    flex-direction: column; 
+    background-color: #000; 
+    width: 100%; height: 100%; 
+  }
+  
+  .settings-header {
+    flex-direction: column;
+    align-items: center;
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
+  .app-logo { width: 120px; height: 120px; border-radius: 30px; margin-bottom: 16px; }
+  .app-name { font-size: 36px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+  .app-version { font-size: 24px; color: #8E8E93; }
+
+  /* Author Card */
+  .author-card {
+    flex-direction: row;
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    padding: 16px;
+    align-items: center;
+    margin-bottom: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .author-avatar {
+    width: 80px; height: 80px;
+    border-radius: 40px;
+    margin-right: 16px;
+    border: 2px solid #2C2C2E;
+    object-fit: cover;
+  }
+  .author-info { flex: 1; flex-direction: column; justify-content: center; }
+  .author-name { font-size: 28px; color: #fff; font-weight: bold; }
+  .author-bio { font-size: 20px; color: #8E8E93; margin-top: 4px; }
+
+  /* Sponsor Card */
+  .sponsor-card {
+    flex-direction: column;
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    padding: 20px;
+    align-items: center;
+    margin-bottom: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .card-title { font-size: 24px; color: #fff; font-weight: bold; margin-bottom: 16px; align-self: flex-start; }
+  .qr-image {
+    width: 200px; height: 200px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  .sponsor-desc { font-size: 20px; color: #8E8E93; }
+
+  .content-wrapper { flex: 1; flex-direction: column; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+  
+  .section-title { font-size: 24px; color: #8E8E93; font-weight: bold; margin-bottom: 8px; margin-left: 4px; }
+  .mt-20 { margin-top: 20px; }
+  .mb-12 { margin-bottom: 12px; }
+
+  .setting-item { 
+    min-height: 100px; 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px 20px; 
+    margin-bottom: 12px; 
+    flex-direction: row;
+    justify-content: space-between; 
+    align-items: center; 
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .setting-item-col {
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px 20px; 
+    margin-bottom: 12px; 
+    flex-direction: column;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .item-col { flex-direction: column; flex: 1; }
+  .item-title { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-sub { font-size: 20px; color: #8E8E93; margin-top: 4px; }
+  
+  .arrow { font-size: 32px; color: #3A3A3C; font-weight: bold; }
+  
+  .switch-pill { padding: 6px 16px; border-radius: 12px; background-color: #2C2C2E; }
+  .switch-off { background-color: #2C2C2E; }
+  .switch-txt { font-size: 22px; color: #8E8E93; font-weight: bold; }
+  
+  /* Theme Colors */
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  .switch-on-orange { background-color: rgba(255, 159, 10, 0.2); }
+  .switch-on-blue { background-color: rgba(78, 129, 238, 0.2); }
+  .switch-on-green { background-color: rgba(163, 250, 0, 0.2); }
+  .switch-on-purple { background-color: rgba(191, 90, 242, 0.2); }
+  
+  /* Theme Circles */
+  .theme-row { flex-direction: row; justify-content: space-around; width: 100%; margin-top: 8px; }
+  .theme-circle { width: 50px; height: 50px; border-radius: 25px; border: 4px solid #1C1C1E; justify-content: center; align-items: center; }
+  .t-active { border-color: #fff; }
+  .check-mark { color: #fff; font-size: 28px; font-weight: bold; }
+
+  .t-orange { background-color: #FF9F0A; }
+  .t-blue { background-color: #4E81EE; }
+  .t-green { background-color: #A3FA00; }
+  .t-purple { background-color: #BF5AF2; }
+
+  .danger { border-color: rgba(255, 69, 58, 0.2); background-color: rgba(255, 69, 58, 0.05); }
+  .danger-text { color: #FF453A; }
+  .danger-sub { color: #FF453A; opacity: 0.7; }
+  
+  .footer-note { font-size: 18px; color: #3A3A3C; text-align: center; margin-top: 16px; margin-bottom: 8px; }
+  .spacer { height: 40px; }
+
+  /* Modal Styles */
+  .modal-mask {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center; align-items: center;
+  }
+  .modal-box {
+    width: 320px;
+    background-color: #1C1C1E;
+    border-radius: 24px;
+    padding: 24px;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #2C2C2E;
+  }
+  .modal-title { font-size: 32px; font-weight: bold; margin-bottom: 12px; }
+  .modal-content { font-size: 24px; color: #8E8E93; text-align: center; margin-bottom: 24px; }
+  .modal-btns { flex-direction: row; width: 100%; justify-content: center; }
+  .modal-btn {
+    flex: 1; height: 64px; justify-content: center; align-items: center;
+    border-radius: 16px; margin: 0 6px;
+  }
+  .cancel { background-color: #2C2C2E; }
+  
+  .btn-txt { font-size: 24px; font-weight: bold; }
+  .cancel-txt { color: #8E8E93; }
+  .confirm-txt { color: #fff; }
+</style>
+<task_progress>
+- [x] Port AchievementsComp.ux to src/pages/Achievements/index.ux
+- [x] Port SettingsComp.ux to src/pages/Settings/index.ux
+</task_progress>
+</write_to_file>

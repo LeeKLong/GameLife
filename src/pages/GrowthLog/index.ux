@@ -1,0 +1,455 @@
+<template>
+  <div class="page-container">
+    <scroll class="scroll-view" scroll-y="true" bounces="true" onscrollbottom="loadMore">
+       
+       <!-- Top Area: Title, Overview, Chart, Tabs -->
+       <div class="top-area-item">
+           <!-- Main Title -->
+           <div class="section-title-row header-gap">
+             <text class="section-title">成长记录</text>
+           </div>
+
+           <!-- Overview Section -->
+           <div class="overview-box">
+              <div class="ov-item">
+                 <text class="ov-val {{'c-'+themeColor}}">{{overview.taskCount}}</text>
+                 <text class="ov-label">完成任务</text>
+              </div>
+              <div class="ov-divider"></div>
+              <div class="ov-item">
+                 <text class="ov-val {{'c-'+themeColor}}">{{formatCoins(overview.totalCoins)}}</text>
+                 <text class="ov-label">累计金币</text>
+              </div>
+              <div class="ov-divider"></div>
+              <div class="ov-item">
+                 <text class="ov-val {{'c-'+themeColor}}">{{overview.signInDays}}</text>
+                 <text class="ov-label">签到天数</text>
+              </div>
+           </div>
+
+           <!-- Trend Chart -->
+           <div class="trend-section">
+             <div class="section-header-row">
+                <text class="section-title sub-title">近7日活跃度</text>
+             </div>
+             
+             <div class="chart-box">
+                <chart if="{{chartLoaded}}" class="trend-chart" type="line" options="{{lineOpts}}" datasets="{{lineData}}"></chart>
+                <text if="{{!chartLoaded}}" class="loading-txt">加载图表数据...</text>
+                <div class="chart-labels">
+                   <text class="chart-label" for="day in trendData">{{day.displayDate}}</text>
+                </div>
+             </div>
+           </div>
+           
+           <div class="section-title-row">
+             <text class="section-title sub-title">详细记录</text>
+           </div>
+
+           <!-- Time Filter Tabs -->
+           <div class="filter-tabs">
+              <div class="filter-btn {{currentFilter==='today' ? 'active-filter-'+themeColor : ''}}" onclick="setFilter('today')">
+                 <text class="filter-txt {{currentFilter==='today' ? 'c-'+themeColor : 'c-gray'}}">今日</text>
+              </div>
+              <div class="filter-btn {{currentFilter==='yesterday' ? 'active-filter-'+themeColor : ''}}" onclick="setFilter('yesterday')">
+                 <text class="filter-txt {{currentFilter==='yesterday' ? 'c-'+themeColor : 'c-gray'}}">昨日</text>
+              </div>
+              <div class="filter-btn {{currentFilter==='past' ? 'active-filter-'+themeColor : ''}}" onclick="setFilter('past')">
+                 <text class="filter-txt {{currentFilter==='past' ? 'c-'+themeColor : 'c-gray'}}">以往</text>
+              </div>
+           </div>
+       </div>
+
+       <!-- Log Items & Headers (Flattened List) -->
+       <block for="(index, item) in renderList">
+           
+           <!-- Date Header -->
+           <div class="date-header-item" if="{{item.type === 'header'}}">
+                <text class="date-txt">{{item.date}}</text>
+           </div>
+
+           <!-- Log Item -->
+           <div class="log-list-item" if="{{item.type === 'log'}}">
+                <div class="log-inner-box" onclick="showDetail(item.data)">
+                    <div class="icon-box {{getIconBgClass(item.data.type)}}">
+                       <text class="icon-txt {{getIconColorClass(item.data.type)}}">{{getIcon(item.data.type)}}</text>
+                    </div>
+                    <div class="log-info">
+                       <div class="log-row">
+                          <text class="log-title">{{item.data.title}}</text>
+                          <text class="log-time">{{formatTime(item.data.timestamp)}}</text>
+                       </div>
+                       <text class="log-desc" if="{{item.data.desc}}">{{item.data.desc}}</text>
+                    </div>
+                </div>
+           </div>
+
+           <!-- Footer (Load More / Empty) -->
+           <div class="footer-item" if="{{item.type === 'footer'}}">
+              <div class="empty-state" if="{{item.isEmpty}}">
+                 <text class="empty-icon">无</text>
+                 <text class="empty-text">暂无相关记录</text>
+              </div>
+              
+              <div class="load-more" if="{{!item.isEmpty && item.hasMore}}">
+                 <text class="load-text" onclick="loadMore">点击加载更多...</text>
+              </div>
+              
+              <div class="no-more" if="{{!item.isEmpty && !item.hasMore}}">
+                 <text class="no-more-text">--- 没有更多了 ---</text>
+              </div>
+              
+              <div class="spacer"></div>
+           </div>
+
+       </block>
+    </scroll>
+
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import vibrator from "@system.vibrator";
+
+const THEME_COLORS = {
+    orange: '#FF9F0A',
+    blue: '#0A84FF',
+    green: '#A3FA00',
+    purple: '#BF5AF2'
+};
+
+// 模块级变量：不需要响应式，避免大数组进入 Vela 观察者系统
+let allLogs = [];
+
+export default {
+  data: {
+    themeColor: 'orange',
+    filteredLogs: [], 
+    renderList: [],
+    currentFilter: 'today',
+    pageSize: 10,
+    currentPage: 1,
+    hasMore: false,
+    overview: {
+        taskCount: 0,
+        totalCoins: 0,
+        signInDays: 0
+    },
+    trendData: [],
+    chartLoaded: false,
+    lineData: [],
+    lineOpts: {},
+    detailPopupVisible: false
+  },
+
+  onInit() {
+    this.loadData();
+  },
+
+  loadData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (!user) return;
+    if (user.settings && user.settings.themeColor) {
+       this.themeColor = user.settings.themeColor;
+    }
+    allLogs = (user.growthLog || []).slice().sort((a, b) => b.timestamp - a.timestamp);
+
+    this.overview.taskCount = user.completedTaskCount || 0;
+    this.overview.totalCoins = user.totalCoins || user.coins || 0;
+    this.overview.signInDays = user.totalSignInDays || 0;
+
+    this.calcTrend();
+    this.applyFilter();
+  },
+
+  setFilter(filter) {
+     if (this.currentFilter === filter) return;
+     const settings = this.$app.$def.globalData.userInfo.settings;
+     if (!settings || settings.enableHaptics !== false) vibrator.vibrate({ mode: 'short' });
+     this.currentFilter = filter;
+     this.applyFilter();
+  },
+
+  applyFilter() {
+     const filter = this.currentFilter;
+     const today = new Date();
+     today.setHours(0,0,0,0);
+     const todayTime = today.getTime();
+     const yesterdayTime = todayTime - 86400000;
+     
+     if (filter === 'today') {
+         this.filteredLogs = allLogs.filter(l => l.timestamp >= todayTime);
+     } else if (filter === 'yesterday') {
+         this.filteredLogs = allLogs.filter(l => l.timestamp >= yesterdayTime && l.timestamp < todayTime);
+     } else if (filter === 'past') {
+         this.filteredLogs = allLogs.filter(l => l.timestamp < yesterdayTime);
+     }
+     
+     this.currentPage = 1;
+     this.renderList = [];
+     this.loadPageData(true);
+  },
+
+  loadPageData(isReset) {
+     const start = (this.currentPage - 1) * this.pageSize;
+     const end = this.currentPage * this.pageSize;
+     const newItems = this.filteredLogs.slice(start, end);
+     
+     this.hasMore = this.filteredLogs.length > end;
+     
+     if (this.renderList.length > 0 && this.renderList[this.renderList.length - 1].type === 'footer') {
+         this.renderList.pop();
+     }
+
+     let lastDate = '';
+     if (!isReset && this.renderList.length > 0) {
+         for (let i = this.renderList.length - 1; i >= 0; i--) {
+             if (this.renderList[i].type === 'header') {
+                 lastDate = this.renderList[i].date;
+                 break;
+             }
+         }
+     }
+
+     const newRenderItems = [];
+     newItems.forEach(log => {
+         const d = new Date(log.timestamp);
+         const dateStr = `${d.getMonth() + 1}月${d.getDate()}日`;
+         if (this.currentFilter === 'past') {
+             if (dateStr !== lastDate) {
+                 newRenderItems.push({ type: 'header', date: dateStr });
+                 lastDate = dateStr;
+             }
+         }
+         newRenderItems.push({ type: 'log', data: log });
+     });
+     
+     if (isReset) {
+         this.renderList = newRenderItems;
+     } else {
+         this.renderList = this.renderList.concat(newRenderItems);
+     }
+     
+     this.renderList.push({ 
+         type: 'footer', 
+         hasMore: this.hasMore, 
+         isEmpty: this.filteredLogs.length === 0 
+     });
+  },
+
+  loadMore() {
+     if (!this.hasMore) return;
+     this.currentPage++;
+     this.loadPageData(false);
+  },
+
+  formatCoins(num) {
+     if (num >= 10000) return (num / 1000).toFixed(1) + 'k';
+     return num;
+  },
+
+  calcTrend() {
+     const days = [];
+     const now = new Date();
+     const oneDay = 86400000;
+     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+     for (let i = 6; i >= 0; i--) {
+        const dTime = todayMidnight - i * oneDay;
+        const d = new Date(dTime);
+        days.push({ timestamp: dTime, displayDate: d.getDate(), count: 0 });
+     }
+     
+     allLogs.forEach(log => {
+         const logDate = new Date(log.timestamp);
+         const logMidnight = new Date(logDate.getFullYear(), logDate.getMonth(), logDate.getDate()).getTime();
+         const target = days.find(d => d.timestamp === logMidnight);
+         if (target) target.count++;
+     });
+     
+     this.trendData = days;
+     this.setupChart();
+  },
+
+  setupChart() {
+      let maxVal = 0;
+      this.trendData.forEach(d => { if(d.count > maxVal) maxVal = d.count; });
+      maxVal = Math.ceil(maxVal * 1.2);
+      if (maxVal < 5) maxVal = 5;
+
+      const themeHex = THEME_COLORS[this.themeColor] || '#FF9F0A';
+
+      this.lineData = [{
+          strokeColor: themeHex,
+          fillColor: themeHex,
+          gradient: true, 
+          data: this.trendData.map(d => d.count)
+      }];
+
+      this.lineOpts = {
+          xAxis: { min: 0, max: 6, display: false, axisTick: 7 },
+          yAxis: { min: 0, max: maxVal, display: false },
+          series: {
+              lineStyle: { width: '3px', smooth: true },
+              headPoint: {
+                  shape: 'circle', size: 0, strokeWidth: 0,
+                  fillColor: '#00000000', strokeColor: '#00000000'
+              }
+          }
+      };
+      
+      this.chartLoaded = true;
+  },
+
+  formatTime(ts) {
+     const d = new Date(ts);
+     const h = d.getHours().toString().padStart(2, '0');
+     const m = d.getMinutes().toString().padStart(2, '0');
+     return `${h}:${m}`;
+  },
+
+  getIcon(type) {
+     if (!type) return '记';
+     const map = { 'level_up': '升', 'achievement': '奖', 'task_complete': '完', 'sign_in': '签', 'attribute_up': '属' };
+     return map[type] || '记';
+  },
+
+  getIconBgClass(type) {
+     const map = { 'level_up': 'bg-gold', 'achievement': 'bg-purple', 'task_complete': 'bg-green', 'sign_in': 'bg-blue', 'attribute_up': 'bg-red' };
+     return map[type] || 'bg-gray';
+  },
+  
+  getIconColorClass(type) {
+     return 'c-white';
+  },
+
+  getTypeName(type) {
+     const map = { 'level_up': '等级提升', 'achievement': '达成成就', 'task_complete': '完成任务', 'sign_in': '每日签到', 'attribute_up': '属性提升' };
+     return map[type] || '系统记录';
+  },
+
+  formatFullTime(ts) {
+     if (!ts) return '';
+     const d = new Date(ts);
+     const y = d.getFullYear();
+     const mo = (d.getMonth() + 1).toString().padStart(2, '0');
+     const day = d.getDate().toString().padStart(2, '0');
+     const h = d.getHours().toString().padStart(2, '0');
+     const m = d.getMinutes().toString().padStart(2, '0');
+     return `${y}-${mo}-${day} ${h}:${m}`;
+  },
+
+  showDetail(data) {
+    const settings = this.$app.$def.globalData.userInfo.settings;
+    if (!settings || settings.enableHaptics !== false) vibrator.vibrate({ mode: 'short' });
+    router.push({ uri: 'pages/GrowthLogDetail', params: { logTimestamp: data.timestamp } });
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; width: 100%; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-gold { color: #FFD60A; }
+  .c-red { color: #FF3B30; }
+  .c-gray { color: #8E8E93; }
+  .c-white { color: #FFFFFF; }
+
+  .bg-gold { background-color: rgba(255, 214, 10, 0.1); }
+  .bg-purple { background-color: rgba(191, 90, 242, 0.1); }
+  .bg-green { background-color: rgba(163, 250, 0, 0.1); }
+  .bg-blue { background-color: rgba(78, 129, 238, 0.1); }
+  .bg-red { background-color: rgba(255, 59, 48, 0.1); }
+  .bg-gray { background-color: rgba(142, 142, 147, 0.1); }
+
+  .top-area-item { flex-direction: column; }
+
+  .section-title-row { margin: 16px 4px 12px 4px; }
+  .header-gap { margin-top: 16px; margin-bottom: 24px; }
+  .section-title { font-size: 28px; color: #fff; font-weight: bold; }
+  .sub-title { font-size: 24px; color: #8E8E93; }
+
+  .overview-box { 
+      flex-direction: row; 
+      background-color: #1C1C1E; 
+      border-radius: 20px; 
+      padding: 20px 0; 
+      margin-bottom: 24px; 
+      border: 1px solid #2C2C2E;
+      justify-content: space-around;
+      align-items: center;
+  }
+  .ov-item { flex: 1; flex-direction: column; align-items: center; justify-content: center; }
+  .ov-val { font-size: 32px; font-weight: bold; margin-bottom: 6px; }
+  .ov-label { font-size: 20px; color: #8E8E93; }
+  .ov-divider { width: 1px; height: 40px; background-color: #2C2C2E; }
+
+  .trend-section { 
+     flex-direction: column; 
+     margin-bottom: 24px; 
+     background-color: #1C1C1E;
+     border-radius: 20px;
+     padding: 20px;
+     border: 1px solid #2C2C2E;
+  }
+  .section-header-row { margin-bottom: 20px; }
+  .chart-box { flex-direction: column; align-items: center; }
+  .trend-chart { width: 100%; height: 200px; }
+  .chart-labels {
+     width: 100%; flex-direction: row; justify-content: space-between;
+     margin-top: 8px; padding: 0 10px;
+  }
+  .chart-label { font-size: 18px; color: #8E8E93; font-weight: bold; width: 40px; text-align: center; }
+  .loading-txt { color: #8E8E93; font-size: 24px; margin: 20px 0; }
+
+  .filter-tabs { 
+     flex-direction: row; flex-wrap: wrap; 
+     background-color: #000; padding-bottom: 8px; margin-bottom: 16px;
+  }
+  .filter-btn {
+     padding: 6px 16px; border-radius: 14px;
+     background-color: #1C1C1E; border: 1px solid #2C2C2E; margin-right: 12px;
+  }
+  .active-filter-orange { background-color: rgba(255, 159, 10, 0.15); border-color: rgba(255, 159, 10, 0.3); }
+  .active-filter-blue { background-color: rgba(78, 129, 238, 0.15); border-color: rgba(78, 129, 238, 0.3); }
+  .active-filter-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
+  .active-filter-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
+  .filter-txt { font-size: 20px; font-weight: bold; }
+
+  .date-header-item { flex-direction: column; margin-bottom: 8px; margin-left: 4px; margin-top: 8px; }
+  .date-txt { font-size: 22px; color: #636366; font-weight: bold; }
+
+  .log-list-item { flex-direction: column; }
+  .log-inner-box { 
+     flex-direction: row; background-color: #1C1C1E; border-radius: 18px; 
+     padding: 14px; margin-bottom: 8px; align-items: center; border: 1px solid #2C2C2E;
+  }
+  .icon-box {
+     width: 40px; height: 40px; border-radius: 14px;
+     justify-content: center; align-items: center; margin-right: 14px;
+  }
+  .icon-txt { font-size: 22px; font-weight: bold; text-align: center; width: 100%; color: #FFFFFF; }
+
+  .log-info { flex: 1; flex-direction: column; }
+  .log-row { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .log-title { font-size: 26px; color: #fff; font-weight: bold; lines: 1; text-overflow: ellipsis; }
+  .log-time { font-size: 20px; color: #636366; }
+  .log-desc { font-size: 22px; color: #8E8E93; lines: 1; text-overflow: ellipsis; }
+
+  .footer-item { flex-direction: column; align-items: center; justify-content: center; }
+  .empty-state { flex-direction: column; align-items: center; margin-top: 40px; }
+  .empty-icon { font-size: 40px; color: #333; margin-bottom: 16px; font-weight: bold; }
+  .empty-text { font-size: 24px; color: #636366; }
+  .load-more { align-items: center; justify-content: center; padding: 20px 0; }
+  .load-text { font-size: 24px; color: #4E81EE; font-weight: bold; }
+  .no-more { align-items: center; justify-content: center; padding: 20px 0; }
+  .no-more-text { font-size: 20px; color: #636366; }
+  .spacer { height: 40px; width: 100%; }
+
+</style>

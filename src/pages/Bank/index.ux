@@ -1,0 +1,241 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="bank-page">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+      <div class="header-row">
+        <text class="page-title">花园银行</text>
+      </div>
+
+      <!-- Bank Balance Card -->
+      <div class="balance-card">
+        <text class="balance-label" static>存款余额</text>
+        <div class="balance-row">
+           <text class="currency-symbol c-gold" static>¥</text>
+           <text class="balance-val c-gold">{{bankCoins}}</text>
+        </div>
+        <div class="pocket-row">
+           <text class="pocket-label" static>随身金币:</text>
+           <text class="pocket-val">{{coins}}</text>
+        </div>
+      </div>
+
+      <!-- Transaction Panel -->
+      <div class="control-card">
+         <text class="input-label" static>操作金额</text>
+         <div class="input-display" onclick="toggleKeyboard">
+            <text class="currency-symbol" static>¥</text>
+            <text class="input-val {{hideKeyboard ? '' : 'editing'}}">{{transAmount || '0'}}</text>
+         </div>
+
+         <!-- Quick Amount Buttons -->
+         <div class="quick-btns">
+            <div class="quick-btn" onclick="addAmount(10)">
+               <text class="quick-txt">+10</text>
+            </div>
+            <div class="quick-btn" onclick="addAmount(100)">
+               <text class="quick-txt">+100</text>
+            </div>
+            <div class="quick-btn" onclick="setAmount('max')">
+               <text class="quick-txt">MAX</text>
+            </div>
+            <div class="quick-btn" onclick="setAmount(0)">
+               <text class="quick-txt">重置</text>
+            </div>
+         </div>
+
+         <!-- Action Buttons -->
+         <div class="action-row">
+            <div class="action-btn bg-soft-blue" onclick="deposit">
+               <text class="action-txt c-blue">存入银行</text>
+            </div>
+            <div class="action-btn bg-soft-green" onclick="withdraw">
+               <text class="action-txt c-green">从银行取出</text>
+            </div>
+         </div>
+      </div>
+      
+      <div class="spacer"></div>
+    </scroll>
+
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="toggleKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="number"
+      maxlength="8"
+      vibratemode="short"
+      screentype="rect"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import prompt from '@system.prompt';
+import vibrator from '@system.vibrator';
+
+export default {
+  data: {
+    coins: 0,
+    bankCoins: 0,
+    transAmount: 0,
+    hideKeyboard: true
+  },
+
+  onInit() {
+    this.refreshData();
+  },
+
+  onShow() {
+    this.refreshData();
+  },
+
+  refreshData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user) {
+      this.coins = user.coins || 0;
+      this.bankCoins = user.bankCoins || 0;
+    }
+  },
+
+  vibrate() {
+    vibrator.vibrate({ mode: 'short' });
+  },
+
+  toggleKeyboard() {
+    this.vibrate();
+    this.hideKeyboard = !this.hideKeyboard;
+  },
+
+  onDelete() {
+    this.vibrate();
+    let str = String(this.transAmount);
+    if (str.length > 1) {
+      this.transAmount = parseInt(str.slice(0, -1), 10);
+    } else {
+      this.transAmount = 0;
+    }
+  },
+
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+    let str = String(this.transAmount);
+    let next = str === '0' ? content : str + content;
+    this.transAmount = parseInt(next, 10);
+  },
+
+  addAmount(val) {
+    this.vibrate();
+    this.transAmount += val;
+  },
+
+  setAmount(mode) {
+    this.vibrate();
+    if (mode === 'max') {
+       // 这里取随身金币和存款余额的最大值作为快捷输入参考
+       this.transAmount = Math.max(this.coins, this.bankCoins);
+    } else {
+       this.transAmount = 0;
+    }
+  },
+
+  deposit() {
+    this.vibrate();
+    if (this.transAmount <= 0) {
+      prompt.showToast({ message: '请输入大于0的金额' });
+      return;
+    }
+    if (this.coins < this.transAmount) {
+      prompt.showToast({ message: '随身金币不足' });
+      return;
+    }
+
+    const user = this.$app.$def.globalData.userInfo;
+    user.coins -= this.transAmount;
+    user.bankCoins = (user.bankCoins || 0) + this.transAmount;
+    
+    this.$app.$def.saveUserData();
+    this.refreshData();
+    prompt.showToast({ message: `成功存入 ${this.transAmount} 金币` });
+    this.transAmount = 0;
+  },
+
+  withdraw() {
+    this.vibrate();
+    if (this.transAmount <= 0) {
+      prompt.showToast({ message: '请输入大于0的金额' });
+      return;
+    }
+    if (this.bankCoins < this.transAmount) {
+      prompt.showToast({ message: '银行存款不足' });
+      return;
+    }
+
+    const user = this.$app.$def.globalData.userInfo;
+    user.bankCoins -= this.transAmount;
+    user.coins += this.transAmount;
+    
+    this.$app.$def.saveUserData();
+    this.refreshData();
+    prompt.showToast({ message: `成功取出 ${this.transAmount} 金币` });
+    this.transAmount = 0;
+  }
+}
+</script>
+
+<style>
+  .bank-page { flex-direction: column; background-color: #000; width: 100%; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+
+  .header-row { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 24px; margin-top: 12px; }
+  .page-title { font-size: 32px; color: #fff; font-weight: bold; }
+
+  .balance-card { 
+    background-color: #1C1C1E; padding: 24px; border-radius: 30px; 
+    flex-direction: column; margin-bottom: 20px; border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .balance-label { color: #8E8E93; font-size: 22px; margin-bottom: 8px; }
+  .balance-row { flex-direction: row; align-items: center; margin-bottom: 16px; }
+  .currency-symbol { font-size: 32px; font-weight: bold; margin-right: 8px; }
+  .c-gold { color: #FFD60A; }
+  .balance-val { font-size: 56px; font-weight: bold; }
+
+  .pocket-row { flex-direction: row; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; }
+  .pocket-label { font-size: 20px; color: #8E8E93; margin-right: 8px; }
+  .pocket-val { font-size: 20px; color: #fff; font-weight: bold; }
+
+  .control-card { 
+    background-color: #1C1C1E; border-radius: 30px; padding: 24px; 
+    flex-direction: column; border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .input-label { color: #8E8E93; font-size: 22px; margin-bottom: 12px; }
+  
+  .input-display { 
+    flex-direction: row; align-items: center; justify-content: center; 
+    background-color: #2C2C2E; height: 100px; border-radius: 20px; margin-bottom: 20px;
+  }
+  .input-val { font-size: 40px; color: #fff; font-weight: bold; }
+  .editing { color: #FF9F0A; }
+
+  .quick-btns { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-bottom: 24px; }
+  .quick-btn { 
+    width: 22%; height: 60px; background-color: #2C2C2E; border-radius: 12px; 
+    justify-content: center; align-items: center; margin-bottom: 10px;
+  }
+  .quick-txt { font-size: 20px; color: #fff; font-weight: bold; }
+
+  .action-row { flex-direction: column; }
+  .action-btn { height: 80px; border-radius: 20px; justify-content: center; align-items: center; margin-bottom: 12px; }
+  .bg-soft-blue { background-color: rgba(10, 132, 255, 0.15); }
+  .bg-soft-green { background-color: rgba(48, 209, 88, 0.15); }
+  .action-txt { font-size: 26px; font-weight: bold; }
+  .c-blue { color: #0A84FF; }
+  .c-green { color: #30D158; }
+
+  .spacer { height: 100px; }
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+</style>

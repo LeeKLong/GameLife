@@ -1,0 +1,332 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="creator-area">
+    <scroll id="formScroll" class="form-box" scroll-y="true" bounces="true">
+      <div class="header-section">
+          <text class="page-main-title">{{editingAttrId ? '编辑属性' : '创建新属性'}}</text>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">基础信息</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('name')">
+            <text class="control-label" static>属性名称</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text {{keyboardTarget === 'name' ? 'editing-text' : ''}}">{{getDisplayValue(newAttr.name, 'name')}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="openKeyboard('icon')">
+            <text class="control-label" static>展示图标</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text">{{newAttr.icon}}</text>
+            </div>
+          </div>
+          <div class="control-row" onclick="cycleColor(1)">
+            <text class="control-label" static>主题颜色</text>
+            <div class="value-pill {{'pill-'+newAttr.color}}">
+               <text class="pill-text {{'c-'+newAttr.color}}">{{getColorLabel(newAttr.color)}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="save-section {{'bg-'+themeColor}}" onclick="emitSave">
+          <text class="save-btn-txt">{{(editingAttrId !== null && editingAttrId !== undefined) ? '保存修改' : '立即创建'}}</text>
+      </div>
+
+      <div class="delete-section" if="{{editingAttrId !== null && editingAttrId !== undefined && !newAttr.isBase}}" onclick="emitDelete">
+          <text class="delete-btn-txt">删除此属性</text>
+      </div>
+      
+      <div class="spacer-lg"></div>
+    </scroll>
+
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="{{keyboardType}}"
+      maxlength="8"
+      vibratemode="short"
+      screentype="{{screenType}}"
+      onvisibilityChange="onVisibilityChange"
+      onkeyDown="onKeyDown"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+
+export default {
+  props: [
+    'editingAttrId',
+    'initialData',
+    'themeColor'
+  ],
+  data: {
+    colors: ['red', 'blue', 'green', 'purple', 'orange', 'pink', 'yellow', 'teal', 'indigo', 'brown', 'gray', 'cyan'],
+    colorIndex: 0,
+    colorHexMap: {
+      red: '#FF3B30',
+      blue: '#0A84FF',
+      green: '#A3FA00',
+      purple: '#BF5AF2',
+      orange: '#FF9F0A',
+      pink: '#FF2D55',
+      yellow: '#FFCC00',
+      teal: '#30B0C7',
+      indigo: '#5856D6',
+      brown: '#A2845E',
+      gray: '#8E8E93',
+      cyan: '#32ADE6'
+    },
+    newAttr: {
+      name: '新属性',
+      icon: '星',
+      color: 'blue',
+      iconColor: 'white',
+      value: 0
+    },
+    hideKeyboard: true,
+    keyboardType: "QWERTY",
+    screenType: "rect",
+    keyboardTarget: ''
+  },
+
+  onInit() {
+    if (this.initialData) {
+        this.newAttr = JSON.parse(JSON.stringify(this.initialData));
+        this.colorIndex = Math.max(0, this.colors.indexOf(this.newAttr.color));
+    } else {
+        // 随机预设属性名称
+        const presets = ['创造', '活力', '魅力', '学识', '耐力', '体力'];
+        const randomIndex = Math.floor(Math.random() * presets.length);
+        this.newAttr.name = presets[randomIndex];
+    }
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  getDisplayValue(val, target) {
+    if (this.keyboardTarget === target) {
+       let str = String(val);
+       if (str.length > 5) {
+          return str.slice(-5);
+       }
+    }
+    return val;
+  },
+
+  cycleColor(dir) {
+    this.vibrate();
+    this.colorIndex = (this.colorIndex + dir + this.colors.length) % this.colors.length;
+    this.newAttr.color = this.colors[this.colorIndex];
+  },
+
+  getColorLabel(color) {
+    const map = { 
+      red: '赤红', blue: '湛蓝', green: '翠绿', purple: '幻紫', orange: '琥珀',
+      pink: '玫红', yellow: '明黄', teal: '青碧', indigo: '靛蓝', brown: '岩棕',
+      gray: '烟灰', cyan: '天青'
+    };
+    return map[color] || color;
+  },
+
+  openKeyboard(target) {
+    if (target === 'value') {
+      this.keyboardType = 'number';
+    } else {
+      this.keyboardType = 'QWERTY';
+    }
+
+    if (this.keyboardTarget === target && !this.hideKeyboard) {
+        this.closeKeyboard();
+    } else {
+        this.keyboardTarget = target;
+        this.hideKeyboard = false;
+        if (target === 'name' && this.newAttr.name === '新属性') {
+             this.newAttr.name = '';
+        }
+        if (target === 'icon' && this.newAttr.icon === '星') {
+             this.newAttr.icon = '';
+        }
+    }
+  },
+
+  closeKeyboard() {
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+  },
+  
+  onVisibilityChange() {},
+  onKeyDown() {},
+  
+  onDelete() {
+    this.vibrate();
+    if (this.keyboardTarget === 'name' || this.keyboardTarget === 'icon') {
+       this.newAttr[this.keyboardTarget] = this.newAttr[this.keyboardTarget].slice(0, -1);
+    } else if (this.keyboardTarget === 'value') {
+       let str = String(this.newAttr.value);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           this.newAttr.value = next === '' ? 0 : parseInt(next, 10);
+       }
+    }
+  },
+  
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+
+    if (this.keyboardTarget === 'name' || this.keyboardTarget === 'icon') {
+       this.newAttr[this.keyboardTarget] += content;
+       if (this.keyboardTarget === 'icon' && this.newAttr.icon.length > 1) {
+           this.newAttr.icon = this.newAttr.icon.slice(-1); // 只保留一个字
+       }
+    } else if (this.keyboardTarget === 'value') {
+       let str = String(this.newAttr.value);
+       let nextVal = str === '0' ? parseInt(content, 10) : parseInt(str + content, 10);
+       if (!isNaN(nextVal)) {
+           this.newAttr.value = nextVal;
+       }
+    }
+  },
+
+  emitSave() {
+    this.vibrate();
+    if (!this.newAttr.name || this.newAttr.name.trim() === '') {
+        const prompt = require('@system.prompt');
+        prompt.showToast({ message: '请输入属性名称' });
+        return;
+    }
+    this.$emit('save', { attr: this.newAttr });
+  },
+
+  emitDelete() {
+    this.vibrate();
+    this.$emit('delete', { attrId: this.editingAttrId });
+  }
+}
+</script>
+
+<style>
+  .creator-area { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background-color: #000; flex-direction: column; z-index: 100; 
+  }
+  
+  .header-section { margin-bottom: 20px; padding-left: 8px; margin-top: 10px; }
+  .page-main-title { font-size: 32px; font-weight: bold; color: #fff; }
+
+  .form-box { flex: 1; flex-direction: column; padding: 16px; }
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+  
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    background-color: transparent;
+    padding: 0 4px;
+  }
+  
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+  }
+  
+  .pill-text { 
+      color: #fff; 
+      font-size: 24px; 
+      text-align: center; 
+      font-weight: bold; 
+  }
+
+  .pill-gray { background-color: #2C2C2E; }
+  .pill-red { background-color: rgba(255, 59, 48, 0.15); }
+  .pill-blue { background-color: rgba(10, 132, 255, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+  .pill-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .pill-pink { background-color: rgba(255, 45, 85, 0.15); }
+  .pill-yellow { background-color: rgba(255, 204, 0, 0.15); }
+  .pill-teal { background-color: rgba(48, 176, 199, 0.15); }
+  .pill-indigo { background-color: rgba(88, 86, 214, 0.15); }
+  .pill-brown { background-color: rgba(162, 132, 94, 0.15); }
+  .pill-gray { background-color: rgba(142, 142, 147, 0.15); }
+  .pill-cyan { background-color: rgba(50, 173, 230, 0.15); }
+
+  .c-red { color: #FF3B30; }
+  .c-blue { color: #0A84FF; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+  .c-orange { color: #FF9F0A; }
+  .c-pink { color: #FF2D55; }
+  .c-yellow { color: #FFCC00; }
+  .c-teal { color: #30B0C7; }
+  .c-indigo { color: #5856D6; }
+  .c-brown { color: #A2845E; }
+  .c-gray { color: #8E8E93; }
+  .c-cyan { color: #32ADE6; }
+
+  .bg-red { background-color: #FF3B30; }
+  .bg-blue { background-color: #0A84FF; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-pink { background-color: #FF2D55; }
+  .bg-yellow { background-color: #FFCC00; }
+  .bg-teal { background-color: #30B0C7; }
+  .bg-indigo { background-color: #5856D6; }
+  .bg-brown { background-color: #A2845E; }
+  .bg-gray { background-color: #8E8E93; }
+  .bg-cyan { background-color: #32ADE6; }
+  
+  .spacer-lg { height: 80px; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+
+  .save-section {
+    margin-top: 20px;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .save-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .delete-section {
+    height: 72px;
+    border-radius: 26px;
+    border: 2px solid rgba(255, 69, 58, 0.3);
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 69, 58, 0.1);
+  }
+  .delete-btn-txt { font-size: 28px; color: #FF453A; font-weight: bold; }
+</style>

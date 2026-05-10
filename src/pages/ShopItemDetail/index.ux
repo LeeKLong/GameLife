@@ -1,0 +1,287 @@
+<template>
+  <div class="page-container">
+    <scroll class="scroll-view" scroll-y="true" bounces="true">
+
+      <!-- Hero Section -->
+      <div class="hero-section">
+        <div class="hero-icon-container {{item.type==='gacha' ? 'bg-soft-purple' : 'bg-soft-blue'}}">
+          <text class="hero-icon-inner {{item.type==='gacha' ? 'c-purple' : 'c-blue'}}">{{item.type==='gacha' ? '盲' : '具'}}</text>
+        </div>
+        <text class="hero-title">{{item.name}}</text>
+        <div class="status-tags">
+          <text class="status-tag {{item.type==='gacha' ? 'bg-soft-purple c-purple' : 'bg-soft-blue c-blue'}}">{{item.type==='gacha' ? '盲盒' : '道具'}}</text>
+          <text class="status-tag bg-soft-gold c-gold" if="{{itemSource==='shop'}}">{{item.price}} 金币</text>
+          <text class="status-tag bg-soft-gray c-gray" if="{{itemSource==='inventory'}}">持有 {{item.count}}</text>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="card-group">
+        <text class="group-title">物品信息</text>
+        <div class="detail-card">
+          <div class="info-item vertical">
+            <text class="info-item-label">描述</text>
+            <text class="info-item-desc">{{item.desc || '暂无描述'}}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Effect (Prop Only) -->
+      <div class="card-group" if="{{item.type==='prop'}}">
+        <text class="group-title">使用效果</text>
+        <div class="detail-card info-list-card">
+          <div class="info-item" if="{{item.effectExp}}">
+            <text class="info-item-label">经验奖励</text>
+            <text class="info-item-val c-green">+{{item.effectExp}}</text>
+          </div>
+          <div class="info-divider" if="{{item.effectExp && item.effectCoins}}"></div>
+          <div class="info-item" if="{{item.effectCoins}}">
+            <text class="info-item-label">金币奖励</text>
+            <text class="info-item-val c-gold">+{{item.effectCoins}}</text>
+          </div>
+          <div class="info-divider" if="{{item.effectAttr && item.effectAttr !== 'none' && item.effectAttrVal}}"></div>
+          <div class="info-item" if="{{item.effectAttr && item.effectAttr !== 'none' && item.effectAttrVal}}">
+            <text class="info-item-label">{{getAttrName(item.effectAttr)}}</text>
+            <text class="info-item-val c-blue">+{{item.effectAttrVal}}</text>
+          </div>
+          <div class="info-divider" if="{{item.duration > 0}}"></div>
+          <div class="info-item" if="{{item.duration > 0}}">
+            <text class="info-item-label">持续时间</text>
+            <text class="info-item-val c-orange">{{item.duration}} 分钟</text>
+          </div>
+          <div class="info-item" if="{{!item.effectExp && !item.effectCoins && !(item.effectAttr && item.effectAttr !== 'none') && !(item.duration > 0)}}">
+            <text class="info-item-label">效果</text>
+            <text class="info-item-val c-gray">无特殊效果</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-section">
+        <!-- Buy Button -->
+        <div class="main-action-btn {{'bg-'+themeColor}}" if="{{itemSource==='shop'}}" onclick="buyItem">
+          <text class="action-btn-txt">购买</text>
+        </div>
+        
+        <!-- Use Button -->
+        <div class="main-action-btn bg-blue" if="{{itemSource==='inventory'}}" onclick="useItem">
+          <text class="action-btn-txt">使用</text>
+        </div>
+
+        <!-- Sell/Refund Button -->
+        <div class="main-action-btn bg-soft-gray border-gray" if="{{itemSource==='inventory'}}" onclick="sellItem">
+          <text class="action-btn-txt c-gray">退货 ({{refundPrice}} 金币)</text>
+        </div>
+
+        <div class="secondary-actions">
+           <div class="icon-action-btn" onclick="editItem">
+             <text class="icon-action-txt {{'c-'+themeColor}}">编辑物品</text>
+           </div>
+        </div>
+      </div>
+
+      <div class="footer-spacer"></div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+import vibrator from "@system.vibrator";
+
+export default {
+  public: {
+    itemName: '',
+    itemSource: 'shop',
+    item: {},
+    themeColor: 'orange',
+    refundPrice: 0
+  },
+
+  onInit() {
+    this.refreshData();
+  },
+  
+  onShow() {
+    this.refreshData();
+  },
+
+  refreshData() {
+    const user = this.$app.$def.globalData.userInfo;
+    if (user && user.settings && user.settings.themeColor) {
+      this.themeColor = user.settings.themeColor;
+    }
+    if (this.itemName) {
+      const list = this.itemSource === 'inventory'
+        ? (user.inventory || [])
+        : (user.shopItems || []);
+      const found = list.find(i => i.name === this.itemName);
+      if (found) {
+        this.item = found;
+        // 计算退货价格
+        const bank = (user.settings && user.settings.bankSettings) || { refundDiscount: 50 };
+        const discount = parseFloat(bank.refundDiscount) || 0;
+        this.refundPrice = Math.floor((this.item.price || 0) * (discount / 100));
+      } else if (this.item && this.item.name) {
+        // Item was deleted, go back
+        router.back();
+      }
+    }
+  },
+
+  getAttrName(type) {
+    const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+    return map[type] || type;
+  },
+
+  vibrate() {
+    const settings = this.$app.$def.globalData.userInfo.settings;
+    if (!settings || settings.enableHaptics !== false) vibrator.vibrate({ mode: 'short' });
+  },
+
+  buyItem() {
+     // Simplified Logic: In a real app, logic should be shared or centralized
+     // For now, prompt user to go back to shop to buy, or implement full buy logic here.
+     // Let's implement full buy logic for better UX.
+     this.vibrate();
+     const appDef = this.$app.$def;
+     const user = appDef.globalData.userInfo;
+     
+     if (user.coins < this.item.price) {
+        prompt.showToast({ message: '金币不足' });
+        return;
+     }
+
+     user.coins -= this.item.price;
+     
+     // 统计购买次数
+     user.shopPurchaseCount = (user.shopPurchaseCount || 0) + 1;
+     if (!user.purchasedItemsMap) user.purchasedItemsMap = {};
+     user.purchasedItemsMap[this.item.name] = (user.purchasedItemsMap[this.item.name] || 0) + 1;
+
+     const inv = user.inventory;
+     const existing = inv.find(i => i.name === this.item.name);
+     if (existing) { existing.count++; }
+     else { inv.push({ ...this.item, count: 1 }); }
+
+     appDef.checkAchievements();
+     appDef.saveUserData();
+     prompt.showToast({ message: '购买成功' });
+     setTimeout(() => { router.back(); }, 800);
+  },
+
+  useItem() {
+     // Trigger usage logic. 
+     // Since usage logic is complex and tied to Shop/index.ux, 
+     // ideally we should move it to app.ux or a shared helper.
+     // For this task, let's redirect back with a param or just notify user.
+     // A simple workaround: Just show toast "请在仓库列表中点击使用"
+     // OR better: navigate back and let user click use.
+     prompt.showToast({ message: '请在仓库界面点击使用' });
+  },
+
+  sellItem() {
+    this.vibrate();
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    
+    // 再次计算退款（防御性）
+    const bank = (user.settings && user.settings.bankSettings) || { refundDiscount: 50 };
+    const discount = parseFloat(bank.refundDiscount) || 0;
+    const refundAmount = Math.floor((this.item.price || 0) * (discount / 100));
+
+    const inv = user.inventory || [];
+    const idx = inv.findIndex(i => i.name === this.item.name);
+    
+    if (idx > -1) {
+      const itemInInv = inv[idx];
+      itemInInv.count--;
+      if (itemInInv.count <= 0) {
+        inv.splice(idx, 1);
+      }
+      
+      appDef.addCoins(refundAmount, false);
+      appDef.addGrowthLog('shop_refund', '商品退货', `退回物品 "${this.item.name}"，回收 ¥${refundAmount} (折扣率 ${discount}%)`, false);
+      appDef.saveUserData();
+      
+      prompt.showToast({ message: `退货成功，回收 ¥${refundAmount}` });
+      setTimeout(() => { router.back(); }, 800);
+    }
+  },
+
+  editItem() {
+    this.vibrate();
+    router.push({ 
+        uri: 'pages/ShopCreator', 
+        params: { itemName: this.item.name } 
+    });
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; height: 100%; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 0 20px; }
+
+  .c-purple { color: #BF5AF2; }
+  .c-blue { color: #0A84FF; }
+  .c-green { color: #A3FA00; }
+  .c-gold { color: #FFD60A; }
+  .c-orange { color: #FF9F0A; }
+  .c-gray { color: #8E8E93; }
+
+  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.12); }
+  .bg-soft-blue { background-color: rgba(10, 132, 255, 0.12); }
+  .bg-soft-gold { background-color: rgba(255, 214, 10, 0.12); }
+  .bg-soft-gray { background-color: rgba(142, 142, 147, 0.12); }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #0A84FF; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  /* Hero Section */
+  .hero-section {
+    flex-direction: column; align-items: center;
+    padding: 40px 0 30px; margin-bottom: 10px;
+  }
+  .hero-icon-container {
+    width: 90px; height: 90px; border-radius: 30px;
+    justify-content: center; align-items: center; margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .hero-icon-inner { font-size: 44px; font-weight: bold; }
+  .hero-title { font-size: 34px; color: #fff; font-weight: bold; text-align: center; margin-bottom: 16px; padding: 0 10px; }
+  .status-tags { flex-direction: row; justify-content: center; }
+  .status-tag { padding: 4px 14px; border-radius: 12px; margin: 0 6px; font-size: 20px; font-weight: bold; }
+
+  /* Card Grouping */
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; color: #8E8E93; font-weight: bold; margin-bottom: 12px; margin-left: 6px; }
+  .detail-card {
+    background-color: #1C1C1E; border-radius: 20px;
+    padding: 16px; border: 1px solid #2C2C2E; flex-direction: column;
+  }
+
+  /* Info List Card */
+  .info-item { flex-direction: row; justify-content: space-between; align-items: center; padding: 12px 4px; }
+  .vertical { flex-direction: column; align-items: flex-start; }
+  .info-item-label { font-size: 22px; color: #8E8E93; font-weight: bold; }
+  .info-item-val { font-size: 22px; color: #fff; font-weight: bold; }
+  .info-item-desc { font-size: 22px; color: #fff; line-height: 34px; margin-top: 6px; }
+  .info-divider { height: 1px; background-color: #2C2C2E; width: 100%; }
+
+  /* Action Buttons */
+  .action-section { flex-direction: column; margin-top: 10px; padding-bottom: 20px; }
+  .main-action-btn { width: 100%; height: 72px; border-radius: 24px; justify-content: center; align-items: center; margin-bottom: 16px; }
+  .action-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .secondary-actions { flex-direction: row; justify-content: center; }
+  .icon-action-btn { padding: 10px 20px; }
+  .icon-action-txt { font-size: 24px; font-weight: bold; }
+  
+  .border-gray { border: 1px solid #3A3A3C; }
+
+  .footer-spacer { height: 60px; }
+</style>

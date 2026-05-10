@@ -1,0 +1,655 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+
+<template>
+  <div class="creator-area">
+    <scroll class="form-box" scroll-y="true" bounces="true">
+      <div class="header-section">
+          <text class="page-main-title">{{editingId ? '编辑自定义成就' : '新建自定义成就'}}</text>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">基础信息</text>
+        <div class="control-card">
+          <div class="control-row mb-12" onclick="openKeyboard('title')">
+            <text class="control-label" static>成就名称</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text {{keyboardTarget === 'title' ? 'editing-text' : ''}}">{{getDisplayValue(task.title, 'title', '未命名')}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="openKeyboard('desc')">
+            <text class="control-label" static>成就描述</text>
+            <div class="value-pill pill-gray">
+               <text class="pill-text {{keyboardTarget === 'desc' ? 'editing-text' : ''}}">{{getDisplayValue(task.desc, 'desc', '无')}}</text>
+            </div>
+          </div>
+          <div class="control-row mb-12" onclick="showConditionPicker">
+            <text class="control-label" static>解锁条件</text>
+            <div class="value-pill pill-blue">
+               <text class="pill-text c-blue">{{getConditionLabel(task.condition)}}</text>
+            </div>
+          </div>
+          <div class="hint-row">
+            <text class="hint-text">{{getConditionDesc(task.condition)}}</text>
+          </div>
+          <div class="control-row mb-12" onclick="openKeyboard('target')">
+            <text class="control-label" static>目标数值</text>
+            <div class="value-pill pill-blue">
+               <text class="pill-text c-blue">{{task.target}}</text>
+            </div>
+          </div>
+          
+          <!-- 关联属性选择器 -->
+          <div class="control-row mb-12" if="{{task.condition === 'attr_reached'}}" onclick="showAttrPicker">
+            <text class="control-label" static>关联属性</text>
+            <div class="value-pill pill-purple">
+               <text class="pill-text c-purple">{{getAttrLabel(task.linkedAttr)}}</text>
+            </div>
+          </div>
+
+          <!-- 关联委托选择器 (次数/连续天数/专注时长) -->
+          <div class="control-row mb-12" if="{{task.condition === 'task_count' || task.condition === 'consecutive_task_days' || task.condition === 'focus_duration'}}" onclick="showTaskPicker">
+            <text class="control-label" static>关联委托</text>
+            <div class="value-pill pill-purple">
+               <text class="pill-text c-purple">{{getTaskLabel(task.linkedTaskId)}}</text>
+            </div>
+          </div>
+
+          <!-- 关联商品选择器 (购买/使用/盲盒获得) -->
+          <div class="control-row mb-12" if="{{task.condition === 'shop_buy_count' || task.condition === 'item_use_count' || task.condition === 'gacha_count'}}" onclick="showItemPicker">
+            <text class="control-label" static>关联商品</text>
+            <div class="value-pill pill-purple">
+               <text class="pill-text c-purple">{{getItemLabel(task.linkedItemId)}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-group">
+        <text class="group-title {{'c-'+themeColor}}">达成奖励 (可选)</text>
+        <div class="control-card">
+           <div class="control-row mb-12" onclick="openKeyboard('rewardCoins')">
+            <text class="control-label" static>奖励金币</text>
+            <div class="value-pill pill-gold">
+               <text class="pill-text c-gold">{{task.rewardCoins}}</text>
+            </div>
+          </div>
+           <div class="control-row" onclick="openKeyboard('rewardExp')">
+            <text class="control-label" static>奖励经验</text>
+            <div class="value-pill pill-green">
+               <text class="pill-text c-green">{{task.rewardExp}}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row">
+          <div class="cancel-section" onclick="close">
+              <text class="cancel-btn-txt">取消</text>
+          </div>
+          <div class="save-section {{'bg-'+themeColor}}" onclick="save">
+              <text class="save-btn-txt">保存</text>
+          </div>
+      </div>
+
+      <div class="delete-row" if="{{editingId}}" onclick="handleDelete">
+          <text class="delete-btn-txt">删除成就</text>
+      </div>
+
+      <div class="spacer-lg"></div>
+    </scroll>
+
+    <!-- Condition Picker Overlay -->
+    <div class="picker-overlay" if="{{pickerVisible}}" onclick="closePicker">
+       <div class="picker-content" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title" static>{{getPickerTitle()}}</text>
+             </div>
+             <div class="picker-item-box" for="{{(idx, item) in pickerList}}" tid="label" onclick="onPickCondition(item)">
+                <div class="picker-item-left">
+                   <text class="item-name">{{item.label}}</text>
+                   <text class="item-desc-short" if="{{item.desc}}">{{item.desc}}</text>
+                </div>
+                <text class="item-type-tag {{'bg-cond-'+item.type}}" if="{{item.type}}">{{item.typeName}}</text>
+             </div>
+          </scroll>
+       </div>
+    </div>
+
+    <div class="keyboard-mask" if="{{!hideKeyboard}}" onclick="closeKeyboard"></div>
+
+    <input-method
+      hide="{{hideKeyboard}}"
+      keyboardtype="{{keyboardType}}"
+      maxlength="20"
+      vibratemode="short"
+      screentype="{{screenType}}"
+      onvisibilityChange="onVisibilityChange"
+      onkeyDown="onKeyDown"
+      ondelete="onDelete"
+      oncomplete="onComplete"
+    ></input-method>
+
+    <!-- Lightweight Modal for Delete Confirmation -->
+    <div class="modal-mask" if="{{modalVisible}}">
+      <div class="modal-box">
+        <text class="modal-title c-red">确认删除</text>
+        <text class="modal-content">确定要删除这个自定义成就吗？删除后将无法恢复。</text>
+        <div class="modal-btns">
+          <div class="modal-btn modal-cancel" onclick="closeModal">
+            <text class="btn-txt cancel-txt">取消</text>
+          </div>
+          <div class="modal-btn modal-confirm bg-red" onclick="confirmDelete">
+            <text class="btn-txt confirm-txt">删除</text>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import vibrator from "@system.vibrator";
+import prompt from "@system.prompt";
+
+export default {
+  props: ['editingId', 'initialData', 'themeColor'],
+
+  data: {
+    task: {
+      title: '',
+      desc: '',
+      target: 1,
+      condition: 'none',
+      rewardCoins: 0,
+      rewardExp: 0,
+      linkedTaskId: null,
+      linkedItemId: null,
+      linkedAttr: 'strength'
+    },
+    conditionList: [
+      { value: 'none', label: '无条件', desc: '手动在列表点击“进度+1”或直接完成', type: 'basic', typeName: '手动' },
+      { value: 'task_count', label: '完成委托次数', desc: '统计委托完成数，可关联全部或特定委托', type: 'task', typeName: '委托' },
+      { value: 'consecutive_task_days', label: '连续完成天数', desc: '统计连续达标天数，可关联全部或特定委托', type: 'task', typeName: '委托' },
+      { value: 'attr_reached', label: '属性达标', desc: '自动统计：指定属性达到目标数值', type: 'attr', typeName: '属性' },
+      { value: 'tomato_count', label: '总计番茄数量', desc: '自动统计：累计获得的番茄总数量', type: 'basic', typeName: '番茄' },
+      { value: 'use_days', label: '使用应用天数', desc: '自动统计：自首次使用以来的累计天数', type: 'basic', typeName: '基础' },
+      { value: 'shop_buy_count', label: '购买商品次数', desc: '统计购买次数，可关联全部或特定商品', type: 'shop', typeName: '商店' },
+      { value: 'item_use_count', label: '使用商品次数', desc: '统计商品使用次数，可关联全部或特定商品', type: 'shop', typeName: '背包' },
+      { value: 'gacha_count', label: '获得特定盲盒物品', desc: '统计从盲盒中开出特定物品的次数', type: 'shop', typeName: '幸运' },
+      { value: 'focus_duration', label: '专注委托时长', desc: '统计特定委托累计专注的分钟数', type: 'task', typeName: '专注' },
+      { value: 'bank_balance', label: '银行存款达标', desc: '当前持有的金币数量达到目标数值', type: 'basic', typeName: '财富' }
+    ],
+    attrOptions: [],
+    taskOptions: [],
+    itemOptions: [],
+    hideKeyboard: true,
+    keyboardType: "QWERTY",
+    screenType: "rect",
+    keyboardTarget: '',
+    pickerVisible: false,
+    pickerTarget: '', // condition, attr, task, item
+    pickerList: [],
+    modalVisible: false
+  },
+
+  onInit() {
+    if (this.initialData) {
+      this.task = Object.assign({}, this.task, this.initialData);
+    }
+    // 默认第一个条件
+    if (!this.task.condition) {
+      this.task.condition = 'none';
+    }
+    this.prepareOptions();
+  },
+
+  prepareOptions() {
+    const user = this.$app.$def.globalData.userInfo;
+    
+    // 准备属性选项
+    this.attrOptions = [
+      { value: 'strength', label: '力量' },
+      { value: 'intelligence', label: '智力' },
+      { value: 'charm', label: '魅力' }
+    ];
+    if (user.customAttributes) {
+      user.customAttributes.forEach(attr => {
+        this.attrOptions.push({ value: attr.name, label: attr.name });
+      });
+    }
+
+    // 准备委托选项
+    this.taskOptions = [{ value: null, label: '全部委托' }];
+    if (user.todoList) {
+      user.todoList.forEach(t => {
+        this.taskOptions.push({ value: t.id, label: t.title });
+      });
+    }
+
+    // 准备商品选项
+    this.itemOptions = [{ value: null, label: '全部商品' }];
+    if (user.shopItems) {
+      user.shopItems.forEach(item => {
+        this.itemOptions.push({ value: item.name, label: item.name });
+      });
+    }
+  },
+
+  getAttrLabel(val) {
+    const opt = this.attrOptions.find(o => o.value === val);
+    return opt ? opt.label : '未选择';
+  },
+
+  getTaskLabel(val) {
+    const opt = this.taskOptions.find(o => o.value === val);
+    return opt ? opt.label : '全部委托';
+  },
+
+  getItemLabel(val) {
+    const opt = this.itemOptions.find(o => o.value === val);
+    return opt ? opt.label : '全部商品';
+  },
+
+  getConditionLabel(cond) {
+    const item = this.conditionList.find(c => c.value === cond);
+    return item ? item.label : '未知条件';
+  },
+
+  getConditionDesc(cond) {
+    const item = this.conditionList.find(c => c.value === cond);
+    return item ? item.desc : '自动追踪进度';
+  },
+
+  getPickerTitle() {
+      const titles = {
+          condition: '选择解锁条件',
+          attr: '选择关联属性',
+          task: '选择关联委托',
+          item: '选择关联商品'
+      };
+      return titles[this.pickerTarget] || '请选择';
+  },
+
+  showConditionPicker() {
+    this.vibrate();
+    this.pickerTarget = 'condition';
+    this.pickerList = this.conditionList;
+    this.pickerVisible = true;
+  },
+
+  showAttrPicker() {
+    this.vibrate();
+    this.pickerTarget = 'attr';
+    this.pickerList = this.attrOptions;
+    this.pickerVisible = true;
+  },
+
+  showTaskPicker() {
+    this.vibrate();
+    this.pickerTarget = 'task';
+    this.pickerList = this.taskOptions;
+    this.pickerVisible = true;
+  },
+
+  showItemPicker() {
+    this.vibrate();
+    this.pickerTarget = 'item';
+    this.pickerList = this.itemOptions;
+    this.pickerVisible = true;
+  },
+
+  closePicker() {
+    this.pickerVisible = false;
+  },
+
+  onPickCondition(item) {
+    this.vibrate();
+    if (this.pickerTarget === 'condition') {
+      this.task.condition = item.value;
+    } else if (this.pickerTarget === 'attr') {
+      this.task.linkedAttr = item.value;
+    } else if (this.pickerTarget === 'task') {
+      this.task.linkedTaskId = item.value;
+    } else if (this.pickerTarget === 'item') {
+      this.task.linkedItemId = item.value;
+    }
+    this.closePicker();
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  close() {
+    this.vibrate();
+    this.$emit('close');
+  },
+
+  getDisplayValue(val, target, placeholder) {
+    if (!val && this.keyboardTarget !== target) return placeholder;
+    if (this.keyboardTarget === target) {
+       let str = String(val);
+       if (str.length > 8) {
+          return str.slice(-8); // Show end of string while typing
+       }
+    }
+    return val;
+  },
+
+  openKeyboard(target) {
+    if (target === 'target' || target === 'rewardCoins' || target === 'rewardExp') {
+      this.keyboardType = 'number';
+    } else {
+      this.keyboardType = 'QWERTY';
+    }
+
+    if (this.keyboardTarget === target && !this.hideKeyboard) {
+        this.closeKeyboard();
+    } else {
+        this.keyboardTarget = target;
+        this.hideKeyboard = false;
+    }
+  },
+
+  closeKeyboard() {
+    this.hideKeyboard = true;
+    this.keyboardTarget = '';
+  },
+
+  onVisibilityChange() {},
+  
+  onKeyDown() {},
+  
+  onDelete() {
+    this.vibrate();
+    if (this.keyboardTarget === 'title') {
+       this.task.title = this.task.title.slice(0, -1);
+    } else if (this.keyboardTarget === 'desc') {
+       this.task.desc = this.task.desc.slice(0, -1);
+    } else if (['target', 'rewardCoins', 'rewardExp'].includes(this.keyboardTarget)) {
+       let targetKey = this.keyboardTarget;
+       let str = String(this.task[targetKey] || 0);
+       if (str.length > 0) {
+           let next = str.slice(0, -1);
+           let val = (next === '' || next === '0') ? 0 : parseInt(next, 10);
+           this.task[targetKey] = val;
+       }
+    }
+  },
+  
+  onComplete(evt) {
+    this.vibrate();
+    const content = evt.detail.content;
+
+    if (this.keyboardTarget === 'title') {
+       this.task.title += content;
+    } else if (this.keyboardTarget === 'desc') {
+       this.task.desc += content;
+    } else if (['target', 'rewardCoins', 'rewardExp'].includes(this.keyboardTarget)) {
+       let targetKey = this.keyboardTarget;
+       let str = String(this.task[targetKey] || 0);
+       let nextVal = str === '0' ? parseInt(content, 10) : parseInt(str + content, 10);
+       if (isNaN(nextVal)) nextVal = 0;
+       this.task[targetKey] = nextVal;
+    }
+  },
+
+  save() {
+    this.vibrate();
+    if (!this.task.title || !this.task.title.trim()) {
+      prompt.showToast({ message: '请输入成就名称' });
+      return;
+    }
+    if (this.task.target < 1) {
+      this.task.target = 1;
+    }
+
+    this.$emit('save', {
+      task: { ...this.task, id: this.editingId || ('custom_' + Date.now()) }
+    });
+  },
+
+  handleDelete() {
+    this.vibrate();
+    this.modalVisible = true;
+  },
+
+  closeModal() {
+    this.vibrate();
+    this.modalVisible = false;
+  },
+
+  confirmDelete() {
+    this.vibrate();
+    this.modalVisible = false;
+    this.$emit('delete', { id: this.editingId });
+  }
+}
+</script>
+
+<style>
+  .creator-area { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background-color: #000; flex-direction: column; z-index: 100; 
+  }
+  
+  .header-section { margin-bottom: 20px; padding-left: 8px; margin-top: 10px; }
+  .page-main-title { font-size: 32px; font-weight: bold; color: #fff; }
+
+  .form-box { flex: 1; flex-direction: column; padding: 16px; }
+  .card-group { flex-direction: column; margin-bottom: 24px; }
+  .group-title { font-size: 22px; margin-bottom: 12px; margin-left: 8px; font-weight: bold; }
+  
+  .control-card { 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px; 
+    border: 2px solid rgba(255, 255, 255, 0.05); 
+    flex-direction: column; 
+  }
+  
+  .control-row { 
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center; 
+    height: 70px;
+    background-color: transparent;
+    padding: 0 4px;
+  }
+  
+  .control-label { color: #fff; font-size: 26px; font-weight: bold; }
+  .mb-12 { margin-bottom: 12px; }
+
+  .value-pill { 
+    padding: 6px 16px; 
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E; 
+    max-width: 260px;
+  }
+  
+  .pill-text { 
+      color: #fff; 
+      font-size: 24px; 
+      text-align: center; 
+      font-weight: bold; 
+      lines: 1; 
+      text-overflow: ellipsis; 
+  }
+
+  .picker-container {
+    padding: 0;
+    border-radius: 16px; 
+    height: 48px;
+    justify-content: center;
+    align-items: center;
+    max-width: 260px;
+  }
+
+  .type-picker {
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    padding: 0 16px;
+    height: 100%;
+    background-color: transparent;
+  }
+
+  .editing-text { text-overflow: clip; }
+
+  .pill-gray { background-color: #2C2C2E; }
+  .pill-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .pill-green { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-gold { background-color: rgba(255, 214, 10, 0.15); }
+  .pill-purple { background-color: rgba(191, 90, 242, 0.15); }
+
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-gold { color: #FFD60A; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  
+  .spacer-lg { height: 80px; }
+
+  .keyboard-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; }
+
+  .action-row {
+      flex-direction: row;
+      justify-content: space-between;
+      margin-top: 20px;
+      margin-bottom: 20px;
+  }
+
+  .cancel-section {
+    flex: 1;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+    background-color: #2C2C2E;
+    margin-right: 12px;
+  }
+  .cancel-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .save-section {
+    flex: 2;
+    height: 72px;
+    border-radius: 26px;
+    justify-content: center;
+    align-items: center;
+  }
+  .save-btn-txt { font-size: 28px; color: #fff; font-weight: bold; }
+
+  .delete-row {
+      width: 100%;
+      height: 72px;
+      border-radius: 26px;
+      justify-content: center;
+      align-items: center;
+      background-color: rgba(255, 69, 58, 0.1);
+      border: 1px solid rgba(255, 69, 58, 0.2);
+      margin-top: 12px;
+  }
+  .delete-btn-txt { font-size: 28px; color: #FF453A; font-weight: bold; }
+
+  .hint-row {
+    padding: 8px 4px;
+    margin-bottom: 12px;
+  }
+  .hint-text {
+    font-size: 18px;
+    color: #8E8E93;
+    lines: 2;
+  }
+
+  /* Picker Overlay */
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 75%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .item-name { font-size: 26px; color: #fff; font-weight: bold; }
+  .item-desc-short { font-size: 18px; color: #8E8E93; lines: 2; margin-top: 4px; }
+  
+  .item-type-tag { font-size: 16px; padding: 2px 8px; border-radius: 6px; color: #fff; font-weight: bold; flex-shrink: 0; }
+  .bg-cond-basic { background-color: #0A84FF; }
+  .bg-cond-attr { background-color: #FF3B30; }
+  .bg-cond-daily { background-color: #A3FA00; color: #000; }
+  .bg-cond-shop { background-color: #FFD60A; color: #000; }
+  .bg-cond-task { background-color: #BF5AF2; }
+
+  /* Modal Styles */
+  .modal-mask {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center; align-items: center;
+    z-index: 200;
+  }
+  .modal-box {
+    width: 320px;
+    background-color: #1C1C1E;
+    border-radius: 32px;
+    padding: 32px;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #2C2C2E;
+  }
+  .modal-title { font-size: 32px; font-weight: bold; margin-bottom: 12px; }
+  .modal-content { font-size: 24px; color: #8E8E93; text-align: center; margin-bottom: 32px; line-height: 36px; }
+  .modal-btns { flex-direction: row; width: 100%; justify-content: center; }
+  .modal-btn {
+    flex: 1; height: 72px; justify-content: center; align-items: center;
+    border-radius: 20px; margin: 0 8px;
+  }
+  .modal-cancel { background-color: #2C2C2E; }
+  .modal-confirm { background-color: #FF453A; }
+  
+  .btn-txt { font-size: 26px; font-weight: bold; }
+  .cancel-txt { color: #8E8E93; }
+  .confirm-txt { color: #fff; }
+  
+  .c-red { color: #FF453A; }
+  .bg-red { background-color: #FF453A; }
+
+</style>

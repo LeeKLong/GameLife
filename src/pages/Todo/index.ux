@@ -1,0 +1,1343 @@
+<import name="bottom-nav" src="../../components/BottomNav.ux"></import>
+<import name="task-creator" src="./TaskCreator.ux"></import>
+
+<template>
+  <div class="main-container">
+    
+    <div class="content-area">
+      <!-- Header removed, using in-scroll title instead -->
+
+      <scroll class="scroll-list" scroll-y="true" bounces="true">
+        <!-- Date Card -->
+        <div class="date-card" if="{{showDateCard}}" onclick="toTomatoTimer">
+           <div class="date-row-top">
+              <text class="date-txt {{'c-'+themeColor}}">{{dateStr}}</text>
+              <text class="week-txt {{'c-'+themeColor}}">{{weekStr}}</text>
+           </div>
+           
+           <div class="time-row">
+              <block if="{{tomatoTimerStatus === 'running' || tomatoTimerStatus === 'paused'}}">
+                <div class="tomato-time-box">
+                  <image class="tomato-icon" src="/common/icons/fq.png"></image>
+                  <text class="time-txt-tomato {{tomatoTimerStatus === 'running' ? 'c-'+themeColor : ''}}">{{tomatoRemainingTimeStr}}</text>
+                </div>
+              </block>
+              <block else>
+                <text class="time-txt">{{timeStr}}</text>
+              </block>
+              <text class="progress-txt">{{todayCompletedCount}}/{{todayTotalCount}}</text>
+           </div>
+
+           <div class="progress-track">
+              <div class="progress-fill {{'bg-'+themeColor}}" style="width: {{todayProgressPercent}}%;"></div>
+           </div>
+        </div>
+
+        <div class="task-list-box">
+          <!-- Task List Items -->
+          <div class="task-card {{task.completed ? 'task-done' : (isTaskOverdue(task) ? 'task-overdue' : '')}}" 
+               for="{{(index, task) in pageTasks}}"
+               tid="id"
+               onlongpress="handleLongPress(index)">
+            
+            <div class="check-zone {{isManaging ? 'check-mini' : ''}}" onclick="handleTaskAction(index)">
+              <div class="check-ring {{isManaging ? 'ring-mini' : ''}} {{task.completed ? 'ring-done-'+themeColor : (isTaskOverdue(task) ? 'ring-overdue' : (task.isTimerRunning ? 'ring-running-'+themeColor : ''))}}">
+              </div>
+            </div>
+            
+            <div class="info-zone" onclick="toDetail(index)">
+              <text class="task-title {{task.completed ? 'task-title-done' : (isTaskOverdue(task) ? 'task-title-overdue' : '')}}">{{task.title}}</text>
+              
+              <div class="meta-row" if="{{!isTaskOverdue(task)}}">
+                <div class="pill {{task.completed ? 'pill-done' : 'pill-exp'}}">
+                  <text class="pill-txt {{task.completed ? 'txt-done' : 'c-green'}}">Exp +{{task.rewardExp}}</text>
+                </div>
+                <div class="pill {{task.completed ? 'pill-done' : 'pill-coin'}}">
+                  <text class="pill-txt {{task.completed ? 'txt-done' : 'c-orange'}}">币 +{{task.rewardCoins}}{{task.goldMode==='random'?'±':''}}</text>
+                </div>
+              </div>
+              
+              <div class="meta-row mt-1">
+                <text class="sub-txt freq-txt {{task.completed ? 'sub-done' : ''}}" if="{{task.frequency && task.frequency !== '单次' && task.frequency !== '每N天'}}">[{{task.frequency}}]</text>
+                <text class="sub-txt freq-txt {{task.completed ? 'sub-done' : ''}}" if="{{task.frequency === '每N天'}}">[每{{task.intervalDays}}天]</text>
+                <text class="sub-txt type-txt {{task.completed ? 'sub-done' : ''}}" if="{{task.taskType === 'count'}}">[计数: {{task.currentCount}}/{{task.targetCount}}]</text>
+                <text class="sub-txt type-txt {{task.completed ? 'sub-done' : ''}}" if="{{task.taskType === 'timer'}}">[计时: {{formatTime(task.remainingTime)}}]</text>
+                <text class="sub-txt deadline-txt {{task.completed ? 'sub-done' : (isTaskOverdue(task) ? 'deadline-overdue' : (getSmartDeadline(task.deadline)==='今天' ? 'deadline-urgent' : ''))}}" if="{{task.deadline && task.deadline !== '不限'}}">{{isTaskOverdue(task) ? '[已逾期] ' + getSmartDeadline(task.deadline) : getSmartDeadline(task.deadline)}}</text>
+                <text class="sub-txt item-txt {{task.completed ? 'sub-done' : ''}}" if="{{task.rewardItem && task.rewardItem !== '无' && !isTaskOverdue(task)}}">[奖] {{task.rewardItem}}</text>
+              </div>
+            </div>
+
+            <div class="imp-bar {{ (task.completed || isTaskOverdue(task)) ? 'imp-done' : (task.importance==='紧急' ? 'imp-high' : (task.importance==='重要' ? 'imp-normal' : 'imp-low'))}}" if="{{!isManaging}}"></div>
+
+            <div class="action-wrapper" if="{{isManaging}}">
+              <div class="sort-zone">
+                <text class="sort-btn {{'c-'+themeColor}}" onclick="moveTask(index, -1)">↑</text>
+                <text class="sort-btn {{'c-'+themeColor}}" onclick="moveTask(index, 1)">↓</text>
+              </div>
+              <div class="fail-zone" onclick="failTask(index)">
+                <text class="fail-txt">×</text>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Create Task Card -->
+          <div class="create-card" onclick="openCreator">
+             <div class="create-icon-circle {{'bg-soft-'+themeColor}}">
+                <text class="create-icon {{'c-'+themeColor}}">+</text>
+             </div>
+             <text class="create-txt" static>发布新委托</text>
+          </div>
+
+          <!-- Spacer for Bottom Nav -->
+          <div class="spacer-item"></div>
+        </div>
+      </scroll>
+    </div>
+
+    <task-creator 
+        if="{{isCreating}}"
+        editing-task-id="{{editingTaskId}}"
+        initial-data="{{newTask}}"
+        shop-items-list="{{shopItems}}"
+        theme-color="{{themeColor}}"
+        onclose="closeCreator"
+        onsave="handleSaveTask"
+        ondelete="handleDeleteTask">
+    </task-creator>
+
+    <bottom-nav active="Todo" if="{{!isCreating}}" theme-color="{{themeColor}}" is-managing="{{isManaging}}" ontabclick="handleTabClick"></bottom-nav>
+
+    <!-- Category Popup -->
+    <div class="picker-overlay" if="{{catPopupVisible}}" onclick="closeCatPopup">
+       <div class="picker-content cat-popup-height" onclick="stopClick">
+          <div class="popup-handle"></div>
+          
+          <scroll class="picker-scroll" scroll-y="true" bounces="true">
+             <div class="picker-header">
+                <text class="picker-title" static>筛选委托</text>
+             </div>
+
+             <div class="picker-item-box {{currentFilter==='all' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('全部')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentFilter==='all' ? 'c-'+themeColor : 'c-white'}}">全部</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentFilter==='all'}}">✓</text>
+             </div>
+             
+             <div class="picker-item-box {{currentFilter==='紧急' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('紧急')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentFilter==='紧急' ? 'c-'+themeColor : 'c-white'}}">紧急</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentFilter==='紧急'}}">✓</text>
+             </div>
+             
+             <div class="picker-item-box {{currentFilter==='重要' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('重要')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentFilter==='重要' ? 'c-'+themeColor : 'c-white'}}">重要</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentFilter==='重要'}}">✓</text>
+             </div>
+
+             <div class="picker-item-box {{currentFilter==='普通' ? 'popup-active-'+themeColor : ''}}" onclick="selectCategory('普通')">
+                <div class="picker-item-left">
+                   <text class="picker-cat-name {{currentFilter==='普通' ? 'c-'+themeColor : 'c-white'}}">普通</text>
+                </div>
+                <text class="check-icon {{'c-'+themeColor}}" if="{{currentFilter==='普通'}}">✓</text>
+             </div>
+             <div style="height: 40px;"></div>
+          </scroll>
+       </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div class="modal-mask" if="{{showModal}}" onclick="closeModal">
+      <div class="modal-box">
+        <text class="modal-title {{'c-'+themeColor}}">{{modalTitle}}</text>
+        <text class="modal-content">{{modalContent}}</text>
+        <div class="modal-btn {{'bg-'+themeColor}}" onclick="closeModal">
+          <text class="modal-btn-txt" static>太棒了</text>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import router from "@system.router"; 
+import vibrator from "@system.vibrator";
+
+export default {
+  data: {
+    isCreating: false,
+    isManaging: false,
+    pageTasks: [],
+    shopItems: [], 
+    newTask: null,
+    editingTaskId: null,
+    editTaskId: null,
+    isDataReady: false,
+    showModal: false,
+    modalTitle: '',
+    modalContent: '',
+    notificationQueue: [],
+    themeColor: 'blue',
+    currentFilter: 'all', // all, 紧急, 重要, 普通, 较低
+    catPopupVisible: false,
+    
+    // Date Card Data
+    showDateCard: false,
+    timeStr: '',
+    dateStr: '',
+    weekStr: '',
+    todayCompletedCount: 0,
+    todayTotalCount: 0,
+    todayProgressPercent: 0,
+    timerId: null,
+
+    // Tomato Timer Takeover
+    tomatoTimerStatus: 'idle',
+    tomatoRemainingTimeStr: '',
+    
+  },
+
+  onInit() {
+    // 1. 同步初始化：立即从 globalData 读取现有数据，防止页面闪烁
+    const appDef = this.$app.$def;
+    const globalData = appDef.globalData;
+    
+    if (globalData.userInfo) {
+        const user = globalData.userInfo;
+        // 立即同步主题色
+        if (user.settings && user.settings.themeColor) {
+            this.themeColor = user.settings.themeColor;
+        }
+        this.showDateCard = user.settings && user.settings.showDateCard === true;
+        this.currentFilter = (user.settings && user.settings.todoFilter) || 'all';
+        
+        // 如果数据已经加载过了，直接刷新列表
+        if (globalData.isDataLoaded) {
+            this.isDataReady = true;
+            this.refreshList();
+        }
+    }
+    
+    // 立即更新一次时间，避免时间显示 00:00
+    this.updateTime();
+
+    // 2. 异步就绪监听：确保数据加载完成后刷新
+    appDef.onDataReady(() => {
+      this.isDataReady = true;
+      this.refreshList();
+      this.startTimeUpdate();
+    });
+  },
+
+  onShow() {
+    const appDef = this.$app.$def;
+    if (appDef.globalData.isDataLoaded) {
+        this.isDataReady = true;
+        this.refreshList();
+        this.updateTime(); // Immediate update on show
+        this.resumeTaskTimers(); // 恢复正在运行的计时器
+        
+        // Handle edit request from detail page
+        if (this.editTaskId) {
+            const taskId = this.editTaskId;
+            this.editTaskId = null; // Clear it
+            const task = this.pageTasks.find(t => String(t.id) === String(taskId));
+            if (task) {
+                this.editingTaskId = task.id;
+                const defaults = {
+                    title: '任务', rewardCoins: 20, goldMode: 'fixed', importance: '普通',
+                    rewardExp: 10, rewardItem: '无', punishment: 0, frequency: '单次', deadline: '不限'
+                };
+                this.newTask = { ...defaults, ...task };
+                this.isCreating = true;
+            }
+        }
+    }
+  },
+  
+  onDestroy() {
+      if (this.timerId) clearInterval(this.timerId);
+      this.clearAllTaskTimers();
+  },
+
+  onHide() {
+      // 离开页面时仅清理 setInterval，保留 isTimerRunning 状态以便恢复
+      this.clearAllTaskTimers();
+      if (this.pageTasks) {
+          let needsSave = false;
+          this.pageTasks.forEach(t => {
+              if (t.taskType === 'timer' && t.isTimerRunning && t.timerTargetTime) {
+                  // 离开时同步一下剩余时间，防止直接关闭应用
+                  t.remainingTime = Math.max(0, Math.ceil((t.timerTargetTime - Date.now()) / 1000));
+                  needsSave = true;
+              }
+          });
+          if (needsSave) {
+              this.$app.$def.saveUserData();
+          }
+      }
+  },
+
+  clearAllTaskTimers() {
+      if (this.pageTasks) {
+          this.pageTasks.forEach(t => {
+              if (t._timerInterval) {
+                  clearInterval(t._timerInterval);
+                  t._timerInterval = null;
+              }
+          });
+      }
+  },
+
+  resumeTaskTimers() {
+      if (!this.pageTasks) return;
+      this.pageTasks.forEach((task, index) => {
+          if (task.taskType === 'timer' && task.isTimerRunning) {
+              if (task.timerTargetTime) {
+                  const remain = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
+                  task.remainingTime = remain;
+                  if (remain <= 0) {
+                      task.isTimerRunning = false;
+                      task.timerTargetTime = null;
+                      this.completeTask(index);
+                  } else {
+                      // 重新启动计时器
+                      if (!task._timerInterval) {
+                          task._timerInterval = setInterval(() => {
+                              const r = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
+                              task.remainingTime = r;
+                              if (r <= 0) {
+                                  task.isTimerRunning = false;
+                                  task.timerTargetTime = null;
+                                  clearInterval(task._timerInterval);
+                                  task._timerInterval = null;
+                                  this.completeTask(index);
+                              }
+                          }, 1000);
+                      }
+                  }
+              } else {
+                  // 异常情况：有状态但没时间戳，重置
+                  task.isTimerRunning = false;
+              }
+          }
+      });
+  },
+
+  onBackPress() {
+    if (this.isCreating) {
+      this.closeCreator();
+      return true;
+    }
+    return false;
+  },
+
+  toTomatoTimer() {
+      this.vibrate();
+      router.push({ uri: 'pages/TomatoTimer' });
+  },
+
+  startTimeUpdate() {
+      if (this.timerId) clearInterval(this.timerId);
+      this.updateTime();
+      this.timerId = setInterval(() => {
+          this.updateTime();
+      }, 1000); // Update every second to sync tomato timer
+  },
+
+  updateTime() {
+      const now = new Date();
+      // Date: M月D日
+      this.dateStr = `${now.getMonth() + 1}月${now.getDate()}日`;
+      
+      // Weekday
+      const weeks = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      this.weekStr = weeks[now.getDay()];
+      
+      // Time: HH:mm
+      const h = now.getHours().toString().padStart(2, '0');
+      const m = now.getMinutes().toString().padStart(2, '0');
+      this.timeStr = `${h}:${m}`;
+
+      // Tomato Timer Sync
+      const timer = this.$app.$def.globalData.tomatoTimer;
+      this.tomatoTimerStatus = timer.status;
+      if (this.tomatoTimerStatus === 'running' || this.tomatoTimerStatus === 'paused') {
+          this.tomatoRemainingTimeStr = this.formatTime(timer.remainingTime);
+      }
+
+      // Sync task running status from tomato timer
+      if (this.pageTasks) {
+          this.pageTasks.forEach(t => {
+              t.isTimerRunning = (t.taskType === 'timer' && t.isTimerRunning) || 
+                                 (timer.status === 'running' && timer.linkedTaskId === t.id);
+          });
+      }
+  },
+
+  refreshList() {
+    const userInfo = this.$app.$def.globalData.userInfo;
+    let changed = false;
+    
+    // Theme & Settings
+    if (userInfo.settings) {
+        if (userInfo.settings.themeColor) {
+            this.themeColor = userInfo.settings.themeColor;
+        } else {
+            this.themeColor = 'orange';
+            userInfo.settings.themeColor = 'orange';
+            changed = true;
+        }
+        this.showDateCard = userInfo.settings.showDateCard === true;
+    } else {
+        this.themeColor = 'orange';
+    }
+
+    const globalList = userInfo.todoList || [];
+    this.shopItems = userInfo.shopItems || [];
+
+    const now = new Date();
+    const todayStr = now.toDateString();
+    
+    const getMonday = (d) => {
+      const day = d.getDay() || 7;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - day + 1);
+      monday.setHours(0,0,0,0);
+      return monday.getTime();
+    };
+    const thisMonday = getMonday(now);
+    
+    // 辅助函数：计算两个日期相隔的天数
+    const getDaysDiff = (date1, date2) => {
+      const d1 = new Date(date1);
+      d1.setHours(0, 0, 0, 0);
+      const d2 = new Date(date2);
+      d2.setHours(0, 0, 0, 0);
+      return Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+    };
+    
+    // 倒序遍历处理过期数据，防止 splice 导致的索引问题
+    for (let i = globalList.length - 1; i >= 0; i--) {
+      const t = globalList[i];
+      
+      // 检测是否逾期未完成，用于重置连击
+      const isOverdue = this.isTaskOverdue(t);
+      if (isOverdue && !t.completed && t.frequency !== '单次') {
+          t.combo = 0; // 连击中断
+          changed = true;
+      }
+
+      if (t.completedDate) {
+        let shouldReset = false;
+        // 判断是否需要重置（进入下一个周期）
+        if (t.frequency === '单次' && t.completedDate !== todayStr) {
+          globalList.splice(i, 1);
+          changed = true;
+          continue;
+        } 
+        else if (t.frequency === '每日' && t.completedDate !== todayStr) {
+          shouldReset = true;
+        } 
+        else if (t.frequency === '每周') {
+          const lastCompletedDate = new Date(t.completedDate);
+          if (getMonday(lastCompletedDate) !== thisMonday) {
+            shouldReset = true;
+          }
+        }
+        else if (t.frequency === '每月') {
+          const lastCompletedDate = new Date(t.completedDate);
+          if (lastCompletedDate.getMonth() !== now.getMonth() || lastCompletedDate.getFullYear() !== now.getFullYear()) {
+            shouldReset = true;
+          }
+        }
+        else if (t.frequency === '每年') {
+          const lastCompletedDate = new Date(t.completedDate);
+          if (lastCompletedDate.getFullYear() !== now.getFullYear()) {
+            shouldReset = true;
+          }
+        }
+        else if (t.frequency === '无限') {
+          // 无限频次：一旦完成标记，立即重置，允许再次点击
+          shouldReset = true;
+        }
+        else if (t.frequency === '每N天') {
+          const lastCompletedDate = new Date(t.completedDate);
+          const interval = parseInt(t.intervalDays) || 1;
+          if (getDaysDiff(lastCompletedDate, now) >= interval) {
+            shouldReset = true;
+          }
+        }
+
+        if (shouldReset) {
+            // 如果是集中完成模式且未完成，则扣除连击
+            if (t.taskType === 'count' && t.countMode !== 'cross_cycle' && !t.completed) {
+                t.combo = 0;
+            }
+
+            t.completed = false;
+            t.completedDate = null;
+            
+            // 关键：重置惩罚标记，并重新计算新周期的到期时间戳
+            t.penaltyApplied = false;
+            if (t.deadline && t.deadline !== '不限') {
+                // 周期性任务如果是 HH:mm 格式，calculateDeadlineTimestamp 会自动处理为今天/明天的该时间点
+                t.deadlineTimestamp = this.$app.$def.calculateDeadlineTimestamp(t.deadline, Date.now());
+            }
+
+            // 计时重置逻辑
+            if (t.taskType === 'timer') {
+                t.isTimerRunning = false;
+                t.timerTargetTime = null;
+                t.remainingTime = (t.targetTime || 25) * 60;
+            }
+
+            // 计数重置逻辑
+            if (t.taskType === 'count') {
+                if (t.countMode === 'cross_cycle') {
+                    // 分步打卡：只有最终达标才在重置时清零
+                    if (t.currentCount >= t.targetCount) {
+                        t.currentCount = 0;
+                    }
+                } else {
+                    // 集中完成：每个周期都必须清零
+                    t.currentCount = 0;
+                }
+            }
+            changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.$app.$def.saveUserData();
+    }
+    
+    // 应用筛选逻辑：在维护逻辑之后，排序逻辑之前进行筛选
+    let displayList = globalList;
+    if (this.currentFilter && this.currentFilter !== 'all') {
+        displayList = globalList.filter(t => t.importance === this.currentFilter);
+    }
+
+    // 分组排序逻辑：未完成(正常) -> 已逾期 -> 已完成
+    const normalTasks = [];
+    const overdueTasks = [];
+    const completedTasks = [];
+
+    displayList.forEach(t => {
+      if (t.completed) {
+        completedTasks.push(t);
+      } else if (this.isTaskOverdue(t)) {
+        overdueTasks.push(t);
+      } else {
+        normalTasks.push(t);
+      }
+    });
+
+    // 优化：排序权重算法
+    const impWeight = { '紧急': 1000, '重要': 100, '普通': 10, '较低': 0 };
+    
+    // 1. 未完成任务排序：综合 逾期风险 > 重要程度 > 截止时间
+    normalTasks.sort((a, b) => {
+      // A. 截止时间权重 (距离现在越近，权重越高)
+      const now = Date.now();
+      const getDeadlineWeight = (task) => {
+          if (!task.deadlineTimestamp) return 0;
+          const diff = task.deadlineTimestamp - now;
+          // 如果距离截止不足 2 小时，给予极高优先级
+          if (diff > 0 && diff < 2 * 3600000) return 5000;
+          // 如果是今天截止，给予高优先级
+          if (diff > 0 && diff < 24 * 3600000) return 500;
+          return 0;
+      };
+
+      const weightA = (impWeight[a.importance] || 0) + getDeadlineWeight(a);
+      const weightB = (impWeight[b.importance] || 0) + getDeadlineWeight(b);
+
+      if (weightA !== weightB) return weightB - weightA;
+
+      // B. 相同权重下，按具体截止时间戳升序（早的在前）
+      if (a.deadlineTimestamp && b.deadlineTimestamp) return a.deadlineTimestamp - b.deadlineTimestamp;
+      if (a.deadlineTimestamp) return -1;
+      if (b.deadlineTimestamp) return 1;
+
+      return 0;
+    });
+
+    // 2. 已逾期任务排序：按重要程度降序，相同重要程度按逾期时长降序（逾期越久越靠后，鼓励先处理刚过期的）
+    overdueTasks.sort((a, b) => {
+      const pA = impWeight[a.importance] || 0;
+      const pB = impWeight[b.importance] || 0;
+      if (pA !== pB) return pB - pA;
+      return (b.deadlineTimestamp || 0) - (a.deadlineTimestamp || 0);
+    });
+
+    // 3. 已完成任务排序：按完成时间降序（最近完成的在最前）
+    completedTasks.sort((a, b) => {
+        const timeA = a.completedDate ? new Date(a.completedDate).getTime() : 0;
+        const timeB = b.completedDate ? new Date(b.completedDate).getTime() : 0;
+        return timeB - timeA;
+    });
+
+    this.pageTasks = [...normalTasks, ...overdueTasks, ...completedTasks];
+    
+    this.todayTotalCount = this.pageTasks.length;
+    this.todayCompletedCount = this.pageTasks.filter(t => t.completed).length;
+    this.todayProgressPercent = this.todayTotalCount > 0 ? (this.todayCompletedCount / this.todayTotalCount * 100) : 0;
+  },
+  
+  vibrate() {
+    const settings = this.$app.$def.globalData.userInfo.settings;
+    if (!settings || settings.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  formatTime(seconds) {
+    if (isNaN(seconds) || seconds < 0) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  },
+
+  isTaskOverdue(task) {
+    if (task.completed) return false;
+    if (task.penaltyApplied) return true;
+    if (task.deadlineTimestamp && task.deadlineTimestamp < Date.now()) return true;
+    return false;
+  },
+
+  getSmartDeadline(deadline) {
+    if (!deadline || deadline === '不限') {
+      return deadline;
+    }
+    
+    if (deadline === '今天' || deadline === '明天') {
+      return deadline;
+    }
+
+    // 处理纯时间格式 HH:mm
+    if (deadline.match(/^\d{1,2}:\d{2}$/)) {
+        return deadline;
+    }
+    
+    // 解析自定义时间格式：月/日 时:分
+    const match = deadline.match(/^(\d+)\/(\d+)\s+(\d+):(\d+)$/);
+    if (!match) {
+      return deadline;
+    }
+    
+    const [, month, day, hour, minute] = match;
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
+    
+    const targetMonth = parseInt(month);
+    const targetDay = parseInt(day);
+    const timeStr = `${hour}:${minute}`;
+    
+    // 判断是今天还是明天，但保留时间显示
+    if (targetMonth === currentMonth && targetDay === currentDay) {
+      return `今天 ${timeStr}`;
+    }
+    
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowMonth = tomorrow.getMonth() + 1;
+    const tomorrowDay = tomorrow.getDate();
+    
+    if (targetMonth === tomorrowMonth && targetDay === tomorrowDay) {
+      return `明天 ${timeStr}`;
+    }
+    
+    // 其他情况返回原格式
+    return deadline;
+  },
+
+  toDetail(index) {
+    if (this.isManaging) return; // 进入编辑模式后，单击卡片主体不执行操作
+    
+    const task = this.pageTasks[index];
+    if (!task) return;
+    this.vibrate();
+    router.push({ uri: 'pages/TodoDetail', params: { taskId: task.id } });
+  },
+
+  handleLongPress(index) {
+    // 长按进入管理模式：如果当前不在管理模式则切换到管理模式
+    // 如果已经在管理模式，长按则打开任务编辑（与旧逻辑一致）
+    if (!this.isManaging) {
+      this.vibrate();
+      this.isManaging = true;
+      const globalData = this.$app.$def.globalData;
+      if (globalData && globalData.userInfo && !globalData.userInfo.hasShownTodoManageTip) {
+         prompt.showToast({ message: '长按委托进行编辑，点击右侧进行排序/删除' });
+         globalData.userInfo.hasShownTodoManageTip = true;
+         this.$app.$def.saveUserData();
+      }
+      return;
+    }
+    
+    this.vibrate();
+    const task = this.pageTasks[index];
+    this.editingTaskId = task.id;
+    const defaults = {
+      title: '任务', rewardCoins: 20, goldMode: 'fixed', importance: '普通',
+      rewardExp: 10, rewardItem: '无', punishment: 0, frequency: '单次', deadline: '不限'
+    };
+    this.newTask = { ...defaults, ...task };
+    this.isCreating = true;
+  },
+
+  handleTabClick() {
+    // 点击底栏当前页图标
+    this.vibrate();
+    if (this.isManaging) {
+        // 如果在管理模式，点击则退出管理模式
+        this.isManaging = false;
+    } else {
+        // 否则打开/关闭分类弹窗
+        this.catPopupVisible = !this.catPopupVisible;
+    }
+  },
+
+  moveTask(index, direction) {
+    this.vibrate();
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= this.pageTasks.length) return;
+    
+    const task = this.pageTasks[index];
+    const targetTask = this.pageTasks[targetIndex];
+    
+    // 限制：只能在同一种状态组内移动 (未完成/已逾期/已完成)
+    const isOverdueA = this.isTaskOverdue(task);
+    const isOverdueB = this.isTaskOverdue(targetTask);
+    
+    if (task.completed !== targetTask.completed || isOverdueA !== isOverdueB) {
+        prompt.showToast({ message: '无法跨越状态组进行排序' });
+        return;
+    }
+
+    const list = this.$app.$def.globalData.userInfo.todoList;
+    const taskIdx = list.findIndex(t => t.id === task.id);
+    const targetIdx = list.findIndex(t => t.id === targetTask.id);
+    if (taskIdx === -1 || targetIdx === -1) return;
+    const temp = list[taskIdx];
+    list[taskIdx] = list[targetIdx];
+    list[targetIdx] = temp;
+    this.$app.$def.saveUserData();
+    this.refreshList();
+  },
+
+  handleTaskAction(index) {
+    if (this.isManaging) return;
+    const task = this.pageTasks[index];
+    if (!task || task.completed) return;
+    if (this.isTaskOverdue(task)) {
+      prompt.showToast({ message: '委托已逾期，请点击卡片进入详情页' });
+      this.vibrate();
+      return;
+    }
+
+    if (task.taskType === 'count') {
+        this.incrementCount(index);
+    } else if (task.taskType === 'timer') {
+        this.toggleTimer(index);
+    } else {
+        this.completeTask(index);
+    }
+  },
+
+  incrementCount(index) {
+    this.vibrate();
+    const task = this.pageTasks[index];
+    
+    // 如果是分步打卡模式（跨周期计数）
+    if (task.frequency !== '单次' && task.countMode === 'cross_cycle') {
+        task.currentCount = (task.currentCount || 0) + 1;
+        
+        if (task.currentCount >= task.targetCount) {
+            task.currentCount = task.targetCount;
+            // 最终目标达标，发放奖励
+            this.completeTask(index, true);
+        } else {
+            // 本周期单次任务完成，变灰进入冷却，不发奖励
+            task.completed = true;
+            task.completedDate = new Date().toDateString();
+            prompt.showToast({ message: `分步打卡完成! 当前: ${task.currentCount}/${task.targetCount}` });
+            this.$app.$def.saveUserData();
+            setTimeout(() => { this.refreshList(); }, 400);
+        }
+    } else {
+        // 集中完成模式（每日喝7杯水）或单次任务
+        task.currentCount = (task.currentCount || 0) + 1;
+        if (task.currentCount >= task.targetCount) {
+            task.currentCount = task.targetCount;
+            // 目标达成，变灰并给奖励
+            this.completeTask(index, true);
+        } else {
+            // 仅仅增加计数，不变灰，继续点击
+            prompt.showToast({ message: `计数: ${task.currentCount}/${task.targetCount}` });
+            this.$app.$def.saveUserData();
+        }
+    }
+  },
+
+  toggleTimer(index) {
+    this.vibrate();
+    const task = this.pageTasks[index];
+    
+    if (task.isTimerRunning) {
+        // 暂停
+        task.isTimerRunning = false;
+        task.timerTargetTime = null;
+        if (task._timerInterval) {
+            clearInterval(task._timerInterval);
+            task._timerInterval = null;
+        }
+        prompt.showToast({ message: '计时暂停' });
+        this.$app.$def.saveUserData();
+    } else {
+        // 开始
+        task.isTimerRunning = true;
+        // 引入绝对时间戳
+        task.timerTargetTime = Date.now() + task.remainingTime * 1000;
+        prompt.showToast({ message: '计时开始' });
+        this.$app.$def.saveUserData();
+        
+        task._timerInterval = setInterval(() => {
+            const remain = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
+            task.remainingTime = remain;
+            
+            if (remain <= 0) {
+                task.isTimerRunning = false;
+                task.timerTargetTime = null;
+                clearInterval(task._timerInterval);
+                task._timerInterval = null;
+                this.completeTask(index);
+            }
+        }, 1000);
+    }
+    // 强制触发 UI 更新
+    this.pageTasks = [...this.pageTasks];
+  },
+
+  completeTask(index, isFinalCount = false) {
+    if (this.isManaging) return;
+    
+    // 改进的防抖机制：使用任务 ID 作为锁
+    const task = this.pageTasks[index];
+    if (!task) return;
+    
+    const taskKey = `task_${task.id}`;
+    if (this[taskKey]) return; // 如果该任务正在处理中，直接返回
+    
+    this[taskKey] = true;
+    setTimeout(() => { delete this[taskKey]; }, 1000);
+    
+    // 清除计时器（如果是计时委托）
+    if (task._timerInterval) {
+        clearInterval(task._timerInterval);
+        task._timerInterval = null;
+        task.isTimerRunning = false;
+    }
+
+    if (task.completed && !isFinalCount) {
+      prompt.showToast({ message: '已完成' });
+      return;
+    }
+    
+    this.vibrate();
+
+    const appDef = this.$app.$def;
+    let baseCoins = parseInt(task.rewardCoins) || 0;
+    let baseExp = parseInt(task.rewardExp) || 0;
+
+    // 处理连击倍率
+    if (task.frequency !== '单次') {
+        task.combo = (task.combo || 0) + 1;
+        const multiplier = 1 + (task.combo - 1) * ((parseInt(task.comboMultiplier) || 0) / 100);
+        baseCoins = Math.floor(baseCoins * multiplier);
+        baseExp = Math.floor(baseExp * multiplier);
+    }
+
+    let finalCoins = baseCoins;
+    if (task.goldMode === 'random') {
+      const factor = 0.5 + Math.random();
+      finalCoins = Math.floor(finalCoins * factor);
+    }
+    
+    const user = appDef.globalData.userInfo;
+    user.completedTaskCount = (user.completedTaskCount || 0) + 1;
+
+    // 处理连续完成天数
+    const today = new Date().toDateString();
+    if (user.lastTaskCompletionDate !== today) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toDateString();
+
+        if (user.lastTaskCompletionDate === yesterdayStr) {
+            user.consecutiveTaskDays = (user.consecutiveTaskDays || 0) + 1;
+        } else {
+            user.consecutiveTaskDays = 1;
+        }
+        user.lastTaskCompletionDate = today;
+    }
+
+    // 分类统计增加
+    if (task.importance === '紧急') user.urgentTaskCount = (user.urgentTaskCount || 0) + 1;
+    else if (task.importance === '重要') user.importantTaskCount = (user.importantTaskCount || 0) + 1;
+    else if (task.importance === '普通') user.normalTaskCount = (user.normalTaskCount || 0) + 1;
+
+    // 批量操作：全部 save=false，最后统一保存一次
+    appDef.addCoins(finalCoins, false);
+    
+    if (task.attrType && task.attrVal) {
+        const val = parseInt(task.attrVal);
+        if (!isNaN(val)) {
+            const baseAttrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+            if (baseAttrNames[task.attrType]) {
+                user.attributes[task.attrType] += val;
+                appDef.addGrowthLog('attribute_up', '属性提升', `${baseAttrNames[task.attrType]} +${val}`, false);
+                // 记录属性变化到历史
+                appDef.logAttributeChange();
+            } else {
+                // 自定义属性
+                const customAttr = (user.customAttributes || []).find(a => a.name === task.attrType);
+                if (customAttr) {
+                    customAttr.value = (customAttr.value || 0) + val;
+                    appDef.addGrowthLog('attribute_up', '属性提升', `${customAttr.name} +${val}`, false);
+                }
+            }
+        }
+    }
+    
+    const newLevel = appDef.gainExp(baseExp, false);
+    
+    const unlocked = appDef.checkAchievements();
+
+    // Log Task Completion（checkAchievements 内部已 save，此处 save=false 避免重复）
+    const comboInfo = (task.combo > 1) ? ` (连击 x${task.combo})` : '';
+    appDef.addGrowthLog('task_complete', '完成任务', `${task.title}${comboInfo} (Exp +${baseExp}, 币 +${finalCoins})`, false);
+    
+    // Show Feedback Toast
+    let toastMsg = `完成!${comboInfo} 金币+${finalCoins} 经验+${baseExp}`;
+    if (task.attrType && task.attrVal) {
+        const baseAttrNames = { strength: '力量', intelligence: '智力', charm: '魅力' };
+        const label = baseAttrNames[task.attrType] || task.attrType;
+        toastMsg += ` ${label}+${task.attrVal}`;
+    }
+    prompt.showToast({ message: toastMsg });
+
+    this.checkNotifications(newLevel, unlocked);
+
+    if (task.rewardItem && task.rewardItem !== '无') {
+        // 使用全局方法添加物品，确保从 shopItems 中获取完整定义
+        appDef.addToInventory(task.rewardItem, 1);
+    }
+    
+    // 单次任务同理记录完成日，等第二天打开列表才清理，这样今天它们就能在进度中显示
+    task.completed = true;
+    task.completedDate = new Date().toDateString();
+
+    // 统一保存一次
+    appDef.saveUserData();
+    // 延迟 400ms 刷新，让用户看到勾选状态后再重排列表
+    setTimeout(() => { this.refreshList(); }, 400);
+  },
+
+  checkNotifications(newLevel, unlocked) {
+    if (newLevel) {
+        this.notificationQueue.push({ title: '等级提升!', content: `Lv.${newLevel}` });
+    }
+    if (unlocked && unlocked.length > 0) {
+        unlocked.forEach(a => {
+            this.notificationQueue.push({ title: '解锁成就!', content: `${a.title}` });
+        });
+    }
+    this.processQueue();
+  },
+  
+  processQueue() {
+    if (this.showModal || this.notificationQueue.length === 0) return;
+    const next = this.notificationQueue.shift();
+    this.modalTitle = next.title;
+    this.modalContent = next.content;
+    this.showModal = true;
+  },
+  
+  closeModal() {
+    this.vibrate();
+    this.showModal = false;
+    setTimeout(() => { this.processQueue(); }, 300);
+  },
+
+  // 分类弹窗相关
+  selectCategory(cat) {
+    const filter = (cat === '全部') ? 'all' : cat;
+    if (this.currentFilter === filter) {
+        this.closeCatPopup();
+        return;
+    }
+    this.vibrate();
+    this.currentFilter = filter;
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    if (!user.settings) user.settings = {};
+    user.settings.todoFilter = this.currentFilter;
+    appDef.saveUserData();
+    this.catPopupVisible = false;
+    this.refreshList();
+  },
+
+  closeCatPopup() {
+    this.vibrate();
+    this.catPopupVisible = false;
+  },
+
+  stopClick(evt) {
+    evt.stopPropagation();
+  },
+
+  failTask(index) {
+    this.vibrate();
+    const task = this.pageTasks[index];
+    const appDef = this.$app.$def;
+    const user = appDef.globalData.userInfo;
+    const globalList = user.todoList;
+    const gIdx = globalList.findIndex(t => t.id === task.id);
+
+    if (gIdx > -1) {
+      // 累计失败次数
+      user.failCount = (user.failCount || 0) + 1;
+      
+      const settings = user.settings || { deletePenalty: true };
+      if (task.punishment > 0 && settings.deletePenalty !== false) {
+        // 通过 addCoins 扣币，统一处理欠债标记和成就检查
+        appDef.addCoins(-parseInt(task.punishment), false);
+        prompt.showToast({ message: `扣除 ${task.punishment} 金币` });
+        // 记录欠债日志
+        if (user.coins < 0) {
+          appDef.addGrowthLog('debt', '欠债', `因任务失败扣除金币，当前欠债 ${-user.coins} 金币`, false);
+        }
+      } else {
+        prompt.showToast({ message: '已删除' });
+      }
+      globalList.splice(gIdx, 1);
+      
+      appDef.checkAchievements();
+      appDef.saveUserData();
+      this.refreshList();
+    }
+  },
+
+  openCreator() {
+    this.vibrate();
+    this.editingTaskId = null;
+    this.newTask = null; 
+    this.isCreating = true;
+    this.isManaging = false;
+  },
+
+  closeCreator() { 
+    this.vibrate();
+    this.isCreating = false; 
+  },
+
+  handleSaveTask(evt) {
+    this.vibrate();
+    const newTask = evt.detail.task;
+    const appDef = this.$app.$def;
+    const list = JSON.parse(JSON.stringify(appDef.globalData.userInfo.todoList || []));
+    const attrType = newTask.attrType || 'strength';
+    const attrVal = parseInt(newTask.attrVal) || 0;
+
+    // 计算deadlineTimestamp（如果设置了期限）
+    let deadlineTimestamp = null;
+    if (newTask.deadline && newTask.deadline !== '不限') {
+      deadlineTimestamp = appDef.calculateDeadlineTimestamp(newTask.deadline, Date.now());
+    }
+
+    if (this.editingTaskId) {
+        const idx = list.findIndex(t => t.id === this.editingTaskId);
+        if (idx > -1) {
+        list[idx] = { ...list[idx], ...newTask, attrType, attrVal, deadlineTimestamp, penaltyApplied: false };
+        prompt.showToast({ message: '已更新' });
+    }
+} else {
+    // 新发布的委托放在数组最前面，配合 refreshList 的稳定分组实现置顶
+    list.unshift({ ...newTask, id: Date.now(), completed: false, attrType, attrVal, deadlineTimestamp, penaltyApplied: false });
+    prompt.showToast({ message: '已发布' });
+}
+    
+    // 强制重新赋值触发 UI 更新
+    appDef.globalData.userInfo.todoList = list;
+    appDef.saveUserData();
+    this.isCreating = false; // 直接关闭而不是调用 closeCreator 减少调用层级
+    
+    // 延迟一帧刷新，确保 globalData 状态同步
+    setTimeout(() => {
+        this.refreshList();
+    }, 50);
+  },
+
+  handleDeleteTask(evt) {
+    this.vibrate();
+    const taskId = evt.detail.taskId;
+    const appDef = this.$app.$def;
+    const globalList = appDef.globalData.userInfo.todoList;
+    const gIdx = globalList.findIndex(t => t.id === taskId);
+    
+    if (gIdx > -1) {
+        globalList.splice(gIdx, 1);
+        appDef.saveUserData();
+        prompt.showToast({ message: '已删除' });
+        this.closeCreator();
+        this.refreshList();
+    }
+  }
+}
+</script>
+
+<style>
+  .main-container { flex-direction: column; background-color: #000; height: 100%; }
+  .content-area { flex: 1; flex-direction: column; }
+
+  /* Theme Colors */
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+  
+  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
+  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
+  .bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
+  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
+  
+  .ring-done-orange { border-color: #FF9F0A; background-color: rgba(255, 159, 10, 0.2); }
+  .ring-done-blue { border-color: #4E81EE; background-color: rgba(78, 129, 238, 0.2); }
+  .ring-done-green { border-color: #A3FA00; background-color: rgba(163, 250, 0, 0.2); }
+  .ring-done-purple { border-color: #BF5AF2; background-color: rgba(191, 90, 242, 0.2); }
+  .ring-overdue { border-color: rgba(255, 69, 58, 0.5); background-color: rgba(255, 69, 58, 0.15); }
+
+  .ring-running-orange { border-color: #FF9F0A; background-color: rgba(255, 159, 10, 0.4); }
+  .ring-running-blue { border-color: #4E81EE; background-color: rgba(78, 129, 238, 0.4); }
+  .ring-running-green { border-color: #A3FA00; background-color: rgba(163, 250, 0, 0.4); }
+  .ring-running-purple { border-color: #BF5AF2; background-color: rgba(191, 90, 242, 0.4); }
+
+  .scroll-list { flex: 1; flex-direction: column; padding-top: 14px; }
+  .task-list-box { flex-direction: column; padding: 0 14px 12px 14px; }
+  
+  /* Date Card */
+  .date-card {
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    padding: 20px 22px; 
+    margin: 0 14px 12px 14px;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+    flex-direction: column;
+  }
+  .date-row-top { flex-direction: row; margin-bottom: 4px; }
+  .date-txt { font-size: 32px; font-weight: bold; margin-right: 18px; }
+  .week-txt { font-size: 32px; font-weight: bold; }
+  
+  .time-row { flex-direction: row; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
+  .time-txt { font-size: 24px; color: rgba(255, 255, 255, 0.6); }
+  .tomato-time-box { align-items: center; }
+  .tomato-icon { width: 30px; height: 30px; margin-right: 8px; }
+  .time-txt-tomato { font-size: 32px; color: rgba(255, 255, 255, 0.9); font-weight: bold; }
+  .progress-txt { font-size: 24px; color: rgba(255, 255, 255, 0.6); font-weight: bold; }
+  
+  .progress-track { 
+    width: 100%; height: 8px; 
+    background-color: #262626; 
+    border-radius: 4px; 
+  }
+  .progress-fill { height: 100%; border-radius: 4px; }
+
+  .task-card {
+    flex-direction: row; 
+    background-color: #1C1C1E; 
+    border-radius: 26px;
+    padding: 12px 16px 12px 16px; 
+    margin-bottom: 12px; 
+    align-items: center; 
+    min-height: 90px;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .task-done { background-color: #121212; }
+  .task-overdue { background-color: rgba(255, 69, 58, 0.1); border-color: rgba(255, 69, 58, 0.3); }
+  
+  .imp-bar {
+    width: 4px; 
+    height: 30px; 
+    border-radius: 2px; 
+    margin-left: 8px; 
+    margin-right: 22px; 
+  }
+  .imp-high { background-color: #FF0707; }
+  .imp-normal { background-color: #FF9807; }
+  .imp-low { background-color: #4E81EE; }
+  .imp-done { background-color: transparent; }
+  
+  .title-done { color: #666; text-decoration: line-through; }
+  .sub-done { color: #666; }
+  
+  .pill-done { background-color: #2C2C2E; }
+  .txt-done { color: #666; }
+  .pill-overdue { background-color: rgba(255, 69, 58, 0.15); }
+  .txt-overdue { color: #FF453A; }
+
+  .check-zone { width: 44px; justify-content: center; }
+  .check-mini { width: 30px; }
+  .check-ring { 
+    width: 28px; height: 28px; 
+    border: 2px solid #48484A; 
+    border-radius: 14px; 
+    align-items: center; 
+    justify-content: center; 
+  }
+  .ring-mini { width: 20px; height: 20px; border-radius: 10px; border-width: 1px; }
+  .done-icon { font-size: 18px; font-weight: bold; }
+
+  .info-zone { flex: 1; flex-direction: column; margin-left: 8px; margin-right: 8px; }
+  .task-title { 
+    font-size: 26px; 
+    color: #ffffff; 
+    font-weight: bold; 
+    margin-bottom: 4px; 
+    lines: 2; 
+    text-overflow: ellipsis;
+  }
+  .task-title-done {
+    color: #666666;
+    text-decoration: line-through;
+  }
+  .task-title-overdue {
+    color: #FF453A;
+  }
+  
+  .meta-row { flex-direction: row; align-items: center; flex-wrap: wrap; margin-bottom: 2px; }
+  .mt-1 { margin-top: 2px; }
+
+  .pill { padding: 2px 6px; border-radius: 6px; margin-right: 6px; background-color: #2C2C2E; margin-bottom: 4px; }
+  .pill-imp { background-color: rgba(10, 132, 255, 0.15); }
+  .pill-exp { background-color: rgba(163, 250, 0, 0.15); }
+  .pill-coin { background-color: rgba(255, 159, 10, 0.15); }
+  
+  .pill-txt { font-size: 16px; font-weight: bold; }
+
+  .sub-txt { font-size: 18px; margin-right: 8px; color: #8E8E93; }
+  .deadline-urgent { color: #FF453A; font-weight: bold; }
+  .deadline-overdue { color: #FF453A; font-weight: bold; }
+  .item-txt { color: #FFD60A; }
+
+  .action-wrapper { flex-direction: row; align-items: center; flex-shrink: 0; padding-left: 8px; }
+  .sort-zone { flex-direction: column; align-items: center; justify-content: center; width: 32px; }
+  .sort-btn { font-size: 24px; font-weight: bold; padding: 6px 0; text-align: center; }
+
+  .fail-zone { width: 44px; height: 44px; justify-content: center; align-items: center; margin-left: 4px; }
+  .fail-txt { font-size: 32px; color: #FF453A; font-weight: bold; }
+  
+  .empty-state { flex-direction: column; align-items: center; margin-top: 100px; }
+  .empty-title { font-size: 28px; color: #8E8E93; margin-bottom: 8px; }
+  .empty-sub { font-size: 24px; color: #48484A; }
+
+  /* Create Card */
+  .create-card {
+    flex-direction: row;
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    padding: 16px; 
+    margin-top: 0;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed rgba(255, 255, 255, 0.05);
+  }
+  .create-icon-circle {
+    width: 32px; height: 32px; border-radius: 16px;
+    justify-content: center; align-items: center; margin-right: 8px;
+  }
+  .create-icon { font-size: 24px; font-weight: bold; margin-top: -2px; }
+  .create-txt { font-size: 24px; color: #8E8E93; font-weight: bold; }
+
+  .spacer-item { height: 120px; width: 100%; }
+
+  /* Modal Styles */
+  .modal-mask {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center; align-items: center;
+  }
+  .modal-box {
+    width: 280px;
+    background-color: #1C1C1E;
+    border-radius: 24px;
+    padding: 24px;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #2C2C2E;
+  }
+  .modal-title { font-size: 32px; font-weight: bold; margin-bottom: 16px; }
+  .modal-content { font-size: 24px; color: #fff; text-align: center; margin-bottom: 24px; }
+  .modal-btn {
+    width: 160px; height: 56px;
+    border-radius: 28px; justify-content: center; align-items: center;
+  }
+  .modal-btn-txt { font-size: 24px; color: #fff; font-weight: bold; }
+
+  /* Picker Styles */
+  .picker-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center; align-items: flex-end;
+    z-index: 120;
+  }
+  .picker-content {
+    width: 100%; height: 70%;
+    background-color: #1C1C1E;
+    border-top-left-radius: 26px; border-top-right-radius: 26px;
+    padding: 24px; flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #2C2C2E;
+  }
+  .cat-popup-height { height: 50%; }
+  .popup-handle { width: 60px; height: 6px; background-color: #3A3A3C; border-radius: 3px; margin-bottom: 20px; opacity: 0.5; }
+  
+  .picker-header { width: 100%; flex-direction: row; justify-content: center; align-items: center; margin-bottom: 20px; }
+  .picker-title { font-size: 28px; color: #fff; font-weight: bold; }
+  
+  .picker-scroll { flex: 1; width: 100%; flex-direction: column; }
+  
+  .picker-item-box {
+    width: 100%; 
+    padding: 16px 20px; 
+    border-radius: 26px;
+    background-color: #2C2C2E; 
+    margin-bottom: 12px;
+    flex-direction: row; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .picker-item-left { flex-direction: column; flex: 1; margin-right: 12px; }
+  .picker-cat-name { font-size: 26px; color: #fff; font-weight: bold; }
+
+  .popup-active-orange { background-color: rgba(255, 159, 10, 0.15); border-color: rgba(255, 159, 10, 0.3); }
+  .popup-active-blue { background-color: rgba(78, 129, 238, 0.15); border-color: rgba(78, 129, 238, 0.3); }
+  .popup-active-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
+  .popup-active-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
+  .check-icon { font-size: 26px; font-weight: bold; }
+  .c-white { color: #fff; }
+
+</style>

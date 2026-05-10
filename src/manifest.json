@@ -1,0 +1,52 @@
+{
+  "package": "com.gamelife.app",
+  "name": "GameLife",
+  "versionName": "2.0.0",
+  "versionCode": 4,
+  "minPlatformVersion": 1100,
+  "icon": "/common/logo.png",
+  "deviceTypeList": [
+    "watch"
+  ],
+  "features": [
+    { "name": "system.prompt" },
+    { "name": "system.router" },
+    { "name": "system.storage" },
+    { "name": "system.app" },
+    { "name": "system.sensor" },
+    { "name": "system.vibrator" }, 
+    { "name": "system.brightness" },
+    { "name": "system.device" },
+    { "name": "system.fetch" }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": "device-width"
+  },
+  "router": {
+    "entry": "pages/Start",
+    "pages": {
+      "pages/Start": { "component": "index" },
+      "pages/Todo": { "component": "index" },
+      "pages/Shop": { "component": "index" },
+      "pages/Status": { "component": "index" },
+      "pages/Settings": { "component": "index" },
+      "pages/Achievements": { "component": "index" },
+      "pages/GrowthLog": { "component": "index" },
+      "pages/StatusDetail": { "component": "index" },
+      "pages/TodoDetail": { "component": "index" },
+      "pages/ShopItemDetail": { "component": "index" },
+      "pages/GrowthLogDetail": { "component": "index" },
+      "pages/TaskCreator": { "component": "index" },
+      "pages/ShopCreator": { "component": "index" },
+      "pages/TomatoTimer": { "component": "TomatoTimer" },
+      "pages/Bank": { "component": "index" },
+      "pages/BankSettings": { "component": "index" },
+      "pages/PenaltySettings": { "component": "index" },
+      "pages/TomatoSettings": { "component": "index" }
+    }
+  },
+  "display": {
+    "backgroundColor": "#000000"
+  }
+}

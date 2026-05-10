@@ -1,0 +1,53 @@
+<template>
+  <div class="splash-container">
+    <!-- 使用 transition 实现淡入，通过 class 切换触发 -->
+    <image src="/common/start.png" class="splash-logo {{logoVisible ? 'logo-visible' : ''}}"></image>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+
+export default {
+  data: {
+    logoVisible: false
+  },
+
+  onReady() {
+    // DOM 就绪后触发 transition 淡入
+    setTimeout(() => {
+      this.logoVisible = true;
+    }, 50);
+
+    // 2秒后跳转到主页
+    setTimeout(() => {
+      router.replace({
+        uri: "pages/Todo"
+      });
+    }, 1000);
+  }
+};
+</script>
+
+<style>
+.splash-container {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000000;
+  height: 100%;
+}
+
+/* 初始透明，通过 transition 淡入 */
+.splash-logo {
+  width: 200px;
+  opacity: 0;
+  transition-property: opacity;
+  transition-duration: 600ms;
+  transition-timing-function: ease-in;
+}
+
+.logo-visible {
+  opacity: 1;
+}
+</style>

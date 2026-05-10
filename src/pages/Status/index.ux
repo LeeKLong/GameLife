@@ -1,0 +1,692 @@
+<import name="bottom-nav" src="../../components/BottomNav"></import>
+
+<template>
+  <div class="page-container">
+    <div class="content-wrapper">
+      <scroll class="scroll-view" scroll-y="true" bounces="true">
+        
+        <!-- Life Status Title -->
+        <div class="section-title-row">
+           <text class="section-title" static>人生状态</text>
+        </div>
+
+        <!-- Header: Level & Basic Info -->
+        <div class="life-card-wrapper" onclick="toGrowthLog">
+            <div class="life-card-top {{'bg-'+themeColor}}">
+                <div class="life-card-top-main">
+                    <div class="life-card-info">
+                        <text class="life-card-title" static>人生等级</text>
+                        <text class="life-card-level">Lv. {{userInfo.level}}</text>
+                    </div>
+                    <div class="life-card-icon-wrapper">
+                        <image class="life-card-icon" src="/common/icons/Diamond.png"></image>
+                    </div>
+                </div>
+                <div class="life-card-exp-row">
+                    <text class="life-card-exp-text">EXP {{userInfo.currentExp}}/{{userInfo.nextLevelExp}}</text>
+                    <div class="life-card-exp-track">
+                        <div class="life-card-exp-fill" style="width: {{expPercent}}%;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="life-card-bottom">
+                <text class="life-card-coin-label" static>金钱</text>
+                <text class="life-card-coin-val {{'c-'+themeColor}}">￥{{userInfo.coins}}</text>
+            </div>
+        </div>
+
+        <!-- Attributes Grid (Horizontal Scroll) -->
+        <div class="section-title-row">
+           <text class="section-title" static>基础属性</text>
+        </div>
+        <scroll class="attr-scroll" scroll-x="true" bounces="true">
+           <div class="attr-grid" onclick="toStatusDetail">
+              <!-- Base Attributes (Strength, Intelligence, Charm) -->
+              <div class="attr-card {{'bg-grad-' + item.color}}" for="item in baseAttrList">
+                 <div class="attr-icon-box {{'glow-' + item.color}}">
+                    <text class="attr-icon-txt">{{item.icon}}</text>
+                 </div>
+                 <text class="attr-val">Lv.{{item.level}}</text>
+                 <text class="attr-name">{{item.name}}</text>
+              </div>
+
+              <!-- Custom Attributes -->
+              <div class="attr-card {{'bg-grad-'+attr.color}}" for="attr in customAttributes">
+                 <div class="attr-icon-box {{'glow-'+attr.color}}">
+                    <text class="attr-icon-txt">{{attr.icon}}</text>
+                 </div>
+                 <text class="attr-val">Lv.{{Math.floor(attr.value / 10)}}</text>
+                 <text class="attr-name">{{attr.name}}</text>
+              </div>
+           </div>
+        </scroll>
+
+        <!-- Active Buffs -->
+        <div class="section-title-row" if="{{activeBuffs && activeBuffs.length > 0}}">
+           <text class="section-title">生效中 ({{activeBuffs.length}})</text>
+        </div>
+        <div class="buff-container" if="{{activeBuffs && activeBuffs.length > 0}}">
+            <div class="buff-chip" for="buff in activeBuffs">
+               <div class="buff-icon-box">
+                 <text class="buff-icon-txt" static>B</text>
+               </div>
+               <div class="buff-info">
+                 <text class="buff-name">{{buff.name}}</text>
+                 <text class="buff-time">{{buff.timeLeft}}</text>
+               </div>
+            </div>
+        </div>
+
+        <!-- Daily Check-in -->
+        <div class="check-in-card {{isSignedIn ? 'checked-bg' : ''}}" onclick="handleSignIn">
+           <div class="check-left" if="{{!isSignedIn}}">
+              <text class="check-title">每日签到</text>
+              <text class="check-desc">领取 50 金币奖励</text>
+           </div>
+           <div class="check-right" if="{{!isSignedIn}}">
+              <text class="check-btn-icon {{'c-'+themeColor}}">+</text>
+           </div>
+
+           <div class="quote-content" if="{{isSignedIn}}">
+              <text class="quote-title">今日一言</text>
+              <text class="quote-text">{{dailyQuote || '加载中...'}}</text>
+           </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-grid">
+           <div class="nav-btn left-btn" onclick="toAchievements">
+              <div class="nav-icon-box ach-icon-bg">
+                <text class="nav-icon-txt {{'c-'+themeColor}}" static>奖</text>
+              </div>
+              <text class="nav-text" static>成就</text>
+           </div>
+           <div class="nav-btn right-btn" onclick="toSettings">
+              <div class="nav-icon-box set-icon-bg">
+                <text class="nav-icon-txt {{'c-'+themeColor}}">设</text>
+              </div>
+              <text class="nav-text" static>设置</text>
+           </div>
+        </div>
+
+        <div class="spacer"></div>
+      </scroll>
+    </div>
+    
+    <bottom-nav active="Status" theme-color="{{themeColor}}"></bottom-nav>
+  </div>
+</template>
+
+<script>
+import prompt from "@system.prompt";
+import router from "@system.router";
+import vibrator from "@system.vibrator";
+import fetch from "@system.fetch";
+
+export default {
+  data: {
+    // Only keep necessary fields to reduce memory overhead
+    userInfo: {
+      level: 1,
+      coins: 0,
+      currentExp: 0,
+      nextLevelExp: 100,
+      attributes: { strength: 0, intelligence: 0, charm: 0 },
+      lastSignInDate: ''
+    },
+    isSignedIn: false,
+    expPercent: 0,
+    activeBuffs: [],
+    dailyQuote: '',
+    customAttributes: [],
+    themeColor: 'orange',
+    baseAttrList: [
+      { key: 'strength', name: '力量', icon: '力', color: 'red', level: 0 },
+      { key: 'intelligence', name: '智力', icon: '智', color: 'blue', level: 0 },
+      { key: 'charm', name: '魅力', icon: '魅', color: 'purple', level: 0 }
+    ]
+  },
+  
+  onInit() {
+    this.timer = null; // Initialize non-reactive property
+    
+    // Immediate sync to prevent flicker
+    const appDef = this.$app.$def;
+    const globalData = appDef.globalData;
+    if (globalData && globalData.userInfo) {
+        const user = globalData.userInfo;
+        if (user.settings && user.settings.themeColor) {
+            this.themeColor = user.settings.themeColor;
+        }
+
+        // 如果数据已经加载过了，立即刷新全部数据，防止页面闪烁
+        if (globalData.isDataLoaded) {
+            this.refreshData();
+        } else {
+            // 如果数据还没加载完，先做基础样式的同步
+            if (user.baseAttrConfig) {
+                this.baseAttrList = this.baseAttrList.map(item => {
+                    if (user.baseAttrConfig[item.key]) {
+                        return { ...item, ...user.baseAttrConfig[item.key] };
+                    }
+                    return item;
+                });
+            }
+            if (user.attributes) {
+                this.baseAttrList = this.baseAttrList.map(item => {
+                    const val = user.attributes[item.key] || 0;
+                    return { ...item, level: Math.floor(val / 10) };
+                });
+                this.userInfo.level = user.level || 1;
+                this.userInfo.coins = user.coins || 0;
+                this.userInfo.currentExp = user.currentExp || 0;
+                this.userInfo.nextLevelExp = user.nextLevelExp || 100;
+            }
+        }
+    }
+  },
+
+  onShow() {
+    this.$app.$def.onDataReady(() => {
+        this.refreshData();
+        this.startBuffTimer();
+    });
+  },
+  
+  onHide() {
+    this.stopBuffTimer();
+  },
+  
+  onDestroy() { 
+    this.stopBuffTimer();
+    // Hint GC
+    if (global.runGC) global.runGC();
+  },
+  
+  refreshData() {
+    // Extract only needed data to avoid observing the whole giant userInfo object
+    const gUser = this.$app.$def.globalData.userInfo;
+    if (gUser) {
+        // In-place update if possible, or new object but minimal fields
+        this.userInfo.level = gUser.level || 1;
+        this.userInfo.coins = gUser.coins || 0;
+        this.userInfo.currentExp = gUser.currentExp || 0;
+        this.userInfo.nextLevelExp = gUser.nextLevelExp || 100;
+        this.userInfo.lastSignInDate = gUser.lastSignInDate || '';
+        this.customAttributes = gUser.customAttributes || [];
+        
+        // Attributes
+        if (gUser.attributes) {
+            const s = gUser.attributes.strength || 0;
+            const i = gUser.attributes.intelligence || 0;
+            const c = gUser.attributes.charm || 0;
+            
+            this.userInfo.attributes.strength = s;
+            this.userInfo.attributes.intelligence = i;
+            this.userInfo.attributes.charm = c;
+            
+            // Update baseAttrList with level and custom config
+            this.baseAttrList = this.baseAttrList.map(item => {
+                const val = gUser.attributes[item.key] || 0;
+                let newItem = { ...item, level: Math.floor(val / 10) };
+                if (gUser.baseAttrConfig && gUser.baseAttrConfig[item.key]) {
+                    newItem = { ...newItem, ...gUser.baseAttrConfig[item.key] };
+                }
+                return newItem;
+            });
+        }
+
+        if (this.userInfo.nextLevelExp > 0) {
+            let pct = (this.userInfo.currentExp / this.userInfo.nextLevelExp) * 100;
+            if(pct > 100) pct = 100;
+            this.expPercent = pct;
+        }
+        
+        // Theme
+        if (gUser.settings && gUser.settings.themeColor) {
+            this.themeColor = gUser.settings.themeColor;
+        } else {
+            this.themeColor = 'orange';
+        }
+
+        this.checkSignInStatus();
+        this.updateBuffDisplay();
+    }
+  },
+  
+  checkSignInStatus() {
+    const today = new Date().toDateString();
+    if (this.userInfo.lastSignInDate === today) {
+        this.isSignedIn = true;
+        const gUser = this.$app.$def.globalData.userInfo;
+        // 如果今天已有缓存的一言，直接使用，不再请求
+        if (gUser.dailyQuoteDate === today && gUser.dailyQuote) {
+            this.dailyQuote = gUser.dailyQuote;
+        } else {
+            this.dailyQuote = "Ciallo～(∠·ω< )⌒☆";
+            this.fetchDailyQuote();
+        }
+    } else {
+        this.isSignedIn = false;
+        this.dailyQuote = '';
+    }
+  },
+
+  fetchDailyQuote() {
+    fetch.fetch({
+        url: 'http://v1.jinrishici.com/all.txt',
+        method: 'GET',
+        header: {
+            'Accept': '*/*'
+        },
+        success: (res) => {
+            const quote = (res && res.code === 200 && res.data && res.data.length > 0)
+                ? res.data.trim()
+                : "Ciallo～(∠·ω< )⌒☆";
+            this.dailyQuote = quote;
+            // 缓存到 globalData，今天内不再重复请求
+            const gUser = this.$app.$def.globalData.userInfo;
+            gUser.dailyQuote = quote;
+            gUser.dailyQuoteDate = new Date().toDateString();
+            this.$app.$def.saveUserData();
+        },
+        fail: (data, code) => {
+            this.dailyQuote = "Ciallo～(∠·ω< )⌒☆";
+        }
+    });
+  },
+
+  vibrate() {
+    if (this.$app.$def.globalData.userInfo.enableHaptics !== false) {
+       vibrator.vibrate({ mode: 'short' });
+    }
+  },
+
+  handleSignIn() {
+    if (this.isSignedIn) {
+        prompt.showToast({ message: 'Ciallo～(∠·ω< )⌒☆' });
+        return;
+    }
+    
+    this.vibrate();
+    const today = new Date().toDateString();
+    const appDef = this.$app.$def;
+    const gUser = appDef.globalData.userInfo;
+    
+    // 通过 addCoins 增加金币，统一处理 totalCoins 累计和成就检查
+    appDef.addCoins(50);
+    
+    // 更新连续签到天数
+    if (gUser.lastSignInDate) {
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        if (gUser.lastSignInDate === yesterday) {
+            gUser.consecutiveSignInDays = (gUser.consecutiveSignInDays || 0) + 1;
+        } else {
+            gUser.consecutiveSignInDays = 1;
+        }
+    } else {
+        gUser.consecutiveSignInDays = 1;
+    }
+
+    gUser.lastSignInDate = today;
+    
+    // Add total sign in days
+    gUser.totalSignInDays = (gUser.totalSignInDays || 0) + 1;
+    
+    // Log Growth
+    appDef.addGrowthLog('sign_in', '每日签到', `累计签到 ${gUser.totalSignInDays} 天`);
+    // 检查签到相关成就
+    appDef.checkAchievements();
+
+    this.isSignedIn = true;
+    appDef.saveUserData();
+    this.refreshData();
+    prompt.showToast({ message: '签到成功! 金币+50' });
+  },
+
+  toGrowthLog() {
+    this.vibrate();
+    router.push({ uri: 'pages/GrowthLog' });
+  },
+
+  toAchievements() {
+    this.vibrate();
+    router.push({ uri: 'pages/Achievements' });
+  },
+  
+  toStatusDetail() {
+    this.vibrate();
+    router.push({ uri: 'pages/StatusDetail' });
+  },
+
+  toSettings() {
+    this.vibrate();
+    router.push({ uri: 'pages/Settings' });
+  },
+
+  startBuffTimer() {
+    this.stopBuffTimer();
+    this.timer = setInterval(() => {
+      this.updateBuffDisplay();
+    }, 1000);
+  },
+
+  stopBuffTimer() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  },
+
+  updateBuffDisplay() {
+    const now = Date.now();
+    const buffs = this.$app.$def.globalData.userInfo.activeBuffs || [];
+    const active = buffs.filter(b => b.endTime > now);
+
+    // 如果数量变化（有 buff 过期），重建数组
+    if (active.length !== this.activeBuffs.length) {
+      this.activeBuffs = active.map(b => {
+        const diff = Math.floor((b.endTime - now) / 1000);
+        const m = Math.floor(diff / 60);
+        const s = diff % 60;
+        return { name: b.name, type: b.type, endTime: b.endTime, timeLeft: `${m}:${s < 10 ? '0' : ''}${s}` };
+      });
+      return;
+    }
+
+    // 数量不变时，只更新 timeLeft，避免整个列表重渲染
+    this.activeBuffs.forEach((item, i) => {
+      const diff = Math.floor((active[i].endTime - now) / 1000);
+      const m = Math.floor(diff / 60);
+      const s = diff % 60;
+      item.timeLeft = `${m}:${s < 10 ? '0' : ''}${s}`;
+    });
+  }
+}
+</script>
+
+<style>
+  .page-container { flex-direction: column; background-color: #000; width: 100%; height: 100%; }
+  .content-wrapper { flex: 1; flex-direction: column; }
+  .scroll-view { flex: 1; flex-direction: column; padding: 16px; }
+  .spacer { height: 80px; width: 100%; }
+
+  /* Theme Colors */
+  .bg-orange { background-color: #FF9F0A; }
+  .bg-blue { background-color: #4E81EE; }
+  .bg-green { background-color: #A3FA00; }
+  .bg-purple { background-color: #BF5AF2; }
+
+  .border-orange { border-color: #FFD60A; }
+  .border-blue { border-color: #4E81EE; }
+  .border-green { border-color: #A3FA00; }
+  .border-purple { border-color: #E29DFF; }
+
+  .c-orange { color: #FF9F0A; }
+  .c-blue { color: #4E81EE; }
+  .c-green { color: #A3FA00; }
+  .c-purple { color: #BF5AF2; }
+
+  /* Growth Log Button */
+  .growth-log-btn {
+    flex-direction: row;
+    background-color: #1C1C1E;
+    border-radius: 20px;
+    padding: 14px 20px;
+    align-items: center;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .growth-icon-box {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background-color: rgba(142, 142, 147, 0.2);
+    justify-content: center; align-items: center;
+    margin-right: 12px;
+  }
+  .growth-icon-txt { font-size: 18px; font-weight: bold; }
+  .growth-btn-txt { font-size: 22px; color: #fff; font-weight: bold; flex: 1; }
+  .growth-arrow { font-size: 22px; color: #8E8E93; font-weight: bold; }
+
+  /* Life Card Modern Redesign */
+  .life-card-wrapper {
+    flex-direction: column;
+    margin-bottom: 24px;
+    background-color: #1C1C1E;
+    border-radius: 26px;
+    border: 2px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .life-card-top {
+    flex-direction: column;
+    border-radius: 26px;
+    padding: 16px 20px 18px 20px; /* 增加底部留白，恢复视觉协调 */
+  }
+
+  .life-card-top-main {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0;
+  }
+
+  .life-card-info {
+    flex-direction: column;
+  }
+
+  .life-card-title {
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 2px;
+    font-weight: bold;
+  }
+
+  .life-card-level {
+    font-size: 40px;
+    font-weight: bold;
+    color: #fff;
+  }
+
+  .life-card-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    background-color: rgba(255, 255, 255, 0.2);
+    justify-content: center;
+    align-items: center;
+  }
+
+  .life-card-icon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+  }
+
+  .life-card-exp-row {
+    flex-direction: column;
+    align-items: flex-end;
+    margin-top: -12px; /* 强行拉近距离，使其更靠近顶部文字 */
+  }
+
+  .life-card-exp-text {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+
+  .life-card-exp-track {
+    height: 8px;
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .life-card-exp-fill {
+    height: 100%;
+    background-color: #fff;
+    border-radius: 4px;
+  }
+
+  .life-card-bottom {
+    flex-direction: row;
+    justify-content: space-between; /* 恢复左右分开 */
+    align-items: center;
+    padding: 10px 20px; /* 恢复左右内边距，保持上下较窄 */
+  }
+
+  .life-card-coin-label {
+    font-size: 24px; /* 字号统一 */
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: bold;
+  }
+
+  .life-card-coin-val {
+    font-size: 24px; /* 字号统一 */
+    font-weight: bold;
+  }
+
+  /* Sections */
+  .section-title-row { margin-bottom: 12px; margin-left: 4px; }
+  .section-title { font-size: 22px; color: #8E8E93; font-weight: bold; }
+
+  /* Attributes Grid (Scroll Mode) */
+  .attr-scroll { flex-direction: row; width: 100%; margin-bottom: 20px; }
+  .attr-grid { flex-direction: row; padding-bottom: 4px; }
+  
+  .attr-card { 
+    width: 140px;
+    height: 120px; 
+    flex-shrink: 0;
+    border-radius: 26px; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    padding: 8px;
+    margin: 0 4px; /* Spacing between cards */
+    border: 2px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .str-bg-grad { background-color: rgba(255, 59, 48, 0.1); }
+  .int-bg-grad { background-color: rgba(10, 132, 255, 0.1); }
+  .chr-bg-grad { background-color: rgba(191, 90, 242, 0.1); }
+
+  .bg-grad-red { background-color: rgba(255, 59, 48, 0.1); }
+  .bg-grad-blue { background-color: rgba(10, 132, 255, 0.1); }
+  .bg-grad-green { background-color: rgba(163, 250, 0, 0.1); }
+  .bg-grad-purple { background-color: rgba(191, 90, 242, 0.1); }
+  .bg-grad-orange { background-color: rgba(255, 159, 10, 0.1); }
+  .bg-grad-pink { background-color: rgba(255, 45, 85, 0.1); }
+  .bg-grad-yellow { background-color: rgba(255, 204, 0, 0.1); }
+  .bg-grad-teal { background-color: rgba(48, 176, 199, 0.1); }
+  .bg-grad-indigo { background-color: rgba(88, 86, 214, 0.1); }
+  .bg-grad-brown { background-color: rgba(162, 132, 94, 0.1); }
+  .bg-grad-gray { background-color: rgba(142, 142, 147, 0.1); }
+  .bg-grad-cyan { background-color: rgba(50, 173, 230, 0.1); }
+  
+  .attr-icon-box { 
+    width: 40px; height: 40px; 
+    border-radius: 20px; 
+    justify-content: center; align-items: center; 
+    margin-bottom: 8px;
+  }
+
+  .glow-red { background-color: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.4); }
+  .glow-blue { background-color: rgba(10, 132, 255, 0.2); border: 1px solid rgba(10, 132, 255, 0.4); }
+  .glow-green { background-color: rgba(163, 250, 0, 0.2); border: 1px solid rgba(163, 250, 0, 0.4); }
+  .glow-purple { background-color: rgba(191, 90, 242, 0.2); border: 1px solid rgba(191, 90, 242, 0.4); }
+  .glow-orange { background-color: rgba(255, 159, 10, 0.2); border: 1px solid rgba(255, 159, 10, 0.4); }
+  .glow-pink { background-color: rgba(255, 45, 85, 0.2); border: 1px solid rgba(255, 45, 85, 0.4); }
+  .glow-yellow { background-color: rgba(255, 204, 0, 0.2); border: 1px solid rgba(255, 204, 0, 0.4); }
+  .glow-teal { background-color: rgba(48, 176, 199, 0.2); border: 1px solid rgba(48, 176, 199, 0.4); }
+  .glow-indigo { background-color: rgba(88, 86, 214, 0.2); border: 1px solid rgba(88, 86, 214, 0.4); }
+  .glow-brown { background-color: rgba(162, 132, 94, 0.2); border: 1px solid rgba(162, 132, 94, 0.4); }
+  .glow-gray { background-color: rgba(142, 142, 147, 0.2); border: 1px solid rgba(142, 142, 147, 0.4); }
+  .glow-cyan { background-color: rgba(50, 173, 230, 0.2); border: 1px solid rgba(50, 173, 230, 0.4); }
+  
+  .attr-icon-txt { font-size: 20px; color: #fff; font-weight: bold; }
+  
+  .attr-name { font-size: 20px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+  .attr-val { font-size: 24px; font-weight: bold; color: #fff; }
+
+  /* Buffs */
+  .buff-container { flex-direction: column; margin-bottom: 24px; }
+  .buff-chip { 
+    flex-direction: row; 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 10px 16px; 
+    margin-bottom: 8px; 
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.05);
+  }
+  .buff-icon-box { 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 16px; 
+    background-color: rgba(163, 250, 0, 0.2); 
+    justify-content: center; 
+    align-items: center; 
+    margin-right: 10px; 
+  }
+  .buff-icon-txt { font-size: 18px; color: #A3FA00; font-weight: bold; }
+  .buff-info { flex: 1; flex-direction: row; justify-content: space-between; align-items: center; }
+  .buff-name { color: #fff; font-size: 22px; }
+  .buff-time { color: #A3FA00; font-size: 22px; font-weight: bold; }
+
+  /* Check-in Card */
+  .check-in-card { 
+    flex-direction: row; 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    padding: 16px 20px; 
+    align-items: center; 
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.08);
+  }
+  .checked-bg { 
+    background-color: rgba(163, 250, 0, 0.1); 
+    border-color: rgba(163, 250, 0, 0.3); 
+    flex-direction: column; 
+    align-items: flex-start;
+  }
+  .check-left { flex: 1; flex-direction: column; }
+  .check-title { font-size: 24px; color: #fff; font-weight: bold; margin-bottom: 4px; }
+  .check-desc { font-size: 18px; color: #8E8E93; }
+  .check-right { 
+    width: 48px; 
+    height: 48px; 
+    justify-content: center; 
+    align-items: center; 
+    background-color: rgba(255,255,255,0.05); 
+    border-radius: 24px; 
+  }
+  .check-btn-icon { font-size: 28px; font-weight: bold; }
+
+  .quote-content { flex-direction: column; width: 100%; }
+  .quote-title { font-size: 20px; color: #A3FA00; font-weight: bold; margin-bottom: 6px; }
+  .quote-text { font-size: 24px; color: #fff; lines: 2; text-overflow: ellipsis; }
+
+  /* Nav Grid */
+  .nav-grid { flex-direction: row; justify-content: space-between; }
+  .nav-btn { 
+    flex: 1; 
+    height: 70px; 
+    background-color: #1C1C1E; 
+    border-radius: 26px; 
+    flex-direction: row; 
+    justify-content: center; 
+    align-items: center; 
+    border: 2px solid rgba(255, 255, 255, 0.08);
+  }
+  .left-btn { margin-right: 6px; }
+  .right-btn { margin-left: 6px; }
+  
+  .nav-icon-box { width: 32px; height: 32px; border-radius: 8px; justify-content: center; align-items: center; margin-right: 8px; }
+  .ach-icon-bg { background-color: rgba(255, 255, 255, 0.1); }
+  .set-icon-bg { background-color: rgba(142, 142, 147, 0.2); }
+  .nav-icon-txt { font-size: 18px; font-weight: bold; }
+  .nav-text { font-size: 22px; color: #fff; font-weight: bold; }
+</style>

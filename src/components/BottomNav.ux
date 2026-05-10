@@ -1,0 +1,115 @@
+<template>
+  <div class="nav-wrapper">
+    <div class="bottom-nav">
+      <div class="nav-item" onclick="jump('pages/Todo')">
+        <div class="nav-pill {{active === 'Todo' ? 'pill-active-' + themeColor : ''}}">
+          <image class="nav-icon" src="{{(active === 'Todo' && isManaging) ? '/common/icons/check-fill.png' : (active === 'Todo' ? '/common/icons/calendar-check-fill.png' : '/common/icons/calendar-check-line.png')}}"></image>
+        </div>
+      </div>
+
+      <div class="nav-item" onclick="jump('pages/Status')">
+        <div class="nav-pill {{active === 'Status' ? 'pill-active-' + themeColor : ''}}">
+          <image class="nav-icon" src="{{active === 'Status' ? '/common/icons/user-fill.png' : '/common/icons/user-line.png'}}"></image>
+        </div>
+      </div>
+
+      <div class="nav-item" onclick="jump('pages/Shop')">
+        <div class="nav-pill {{active === 'Shop' ? 'pill-active-' + themeColor : ''}}">
+          <image class="nav-icon" src="{{active === 'Shop' ? '/common/icons/shopping-bag-4-fill.png' : '/common/icons/shopping-bag-4-line.png'}}"></image>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from '@system.router';
+import vibrator from '@system.vibrator';
+
+export default {
+  props: {
+    active: { default: 'Todo' },
+    themeColor: { default: 'orange' },
+    isManaging: { default: false }
+  },
+
+  jump(uri) {
+    const pageName = uri.split('/')[1];
+    if (this.active === pageName) {
+      this.$emit('tabclick', { page: pageName });
+      return;
+    }
+
+    const globalData = this.$app.$def.globalData;
+    if (globalData && globalData.userInfo && globalData.userInfo.enableHaptics !== false) {
+      vibrator.vibrate({ mode: 'short' });
+    }
+    router.replace({ uri: uri });
+  }
+}
+</script>
+
+<style>
+  .nav-wrapper {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 76px;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-end;
+    background-image: url('/common/mask.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+  }
+
+  .bottom-nav {
+    width: 336px;
+    height: 76px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 16px;
+  }
+
+  .nav-item {
+    flex: 1;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .nav-pill {
+    width: 84px;
+    height: 46px;
+    border-radius: 23px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .pill-active {
+    background-color: #4E81EE;
+  }
+  
+  .pill-active-orange {
+    background-color: #FF9F0A;
+  }
+  
+  .pill-active-blue {
+    background-color: #4E81EE;
+  }
+  
+  .pill-active-green {
+    background-color: #A3FA00;
+  }
+  
+  .pill-active-purple {
+    background-color: #BF5AF2;
+  }
+
+  .nav-icon {
+    width: 36px;
+    height: 36px;
+  }
+</style>
