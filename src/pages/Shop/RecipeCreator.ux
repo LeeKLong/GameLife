@@ -253,7 +253,7 @@ export default {
        if (str.length > 0) {
            let next = str.slice(0, -1);
            if (next === '' || next === '.') this.newRecipe.rate = 0;
-           else this.newRecipe.rate = next;
+           else this.newRecipe.rate = parseFloat(next) || 0;
        }
     } else if (this.keyboardTarget.startsWith('rewardWeight-')) {
        const idx = parseInt(this.keyboardTarget.split('-')[1]);
@@ -261,7 +261,7 @@ export default {
        if (str.length > 0) {
            let next = str.slice(0, -1);
            if (next === '' || next === '.') this.newRecipe.rewards[idx].weight = 0;
-           else this.newRecipe.rewards[idx].weight = next;
+           else this.newRecipe.rewards[idx].weight = parseFloat(next) || 0;
            this.newRecipe.rewards.splice(idx, 1, this.newRecipe.rewards[idx]);
        }
     }
@@ -276,19 +276,19 @@ export default {
        let str = String(this.newRecipe.rate);
        if (content === '.' && str.includes('.')) return;
        let next = (str === '0' && content !== '.') ? content : str + content;
-       
+
        if (content !== '.') {
          let val = parseFloat(next);
          if (!isNaN(val) && val > 100) next = "100";
        }
-       this.newRecipe.rate = next;
+       this.newRecipe.rate = parseFloat(next) || 0;
     } else if (this.keyboardTarget.startsWith('rewardWeight-')) {
        const idx = parseInt(this.keyboardTarget.split('-')[1]);
        let str = String(this.newRecipe.rewards[idx].weight);
        if (content === '.' && str.includes('.')) return;
        let next = (str === '0' && content !== '.') ? content : str + content;
-       
-       this.newRecipe.rewards[idx].weight = next;
+
+       this.newRecipe.rewards[idx].weight = parseFloat(next) || 0;
        this.newRecipe.rewards.splice(idx, 1, this.newRecipe.rewards[idx]);
     }
   },

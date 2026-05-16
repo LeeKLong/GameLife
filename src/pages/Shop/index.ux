@@ -452,10 +452,21 @@ export default {
            }
            if (selected) {
                let msg = "";
-               // 统计盲盒获得记录
+               // 统计盲盒获得记录（所有奖励类型均记录，确保成就系统可追踪）
+               if (!user.gachaGotItemsMap) user.gachaGotItemsMap = {};
                if (selected.type === 'item' || selected.type === 'gacha') {
-                   if (!user.gachaGotItemsMap) user.gachaGotItemsMap = {};
                    user.gachaGotItemsMap[selected.name] = (user.gachaGotItemsMap[selected.name] || 0) + (selected.count || 1);
+               } else if (selected.type === 'coins') {
+                   const key = `${selected.val}金币`;
+                   user.gachaGotItemsMap[key] = (user.gachaGotItemsMap[key] || 0) + 1;
+               } else if (selected.type === 'exp') {
+                   const key = `${selected.val}经验`;
+                   user.gachaGotItemsMap[key] = (user.gachaGotItemsMap[key] || 0) + 1;
+               } else if (selected.type === 'all') {
+                   user.gachaGotItemsMap['全属性'] = (user.gachaGotItemsMap['全属性'] || 0) + 1;
+               } else if (['strength', 'intelligence', 'charm'].includes(selected.type)) {
+                   const map = { strength: '力量', intelligence: '智力', charm: '魅力' };
+                   user.gachaGotItemsMap[map[selected.type]] = (user.gachaGotItemsMap[map[selected.type]] || 0) + 1;
                }
 
                if (selected.type === 'item') {
@@ -499,6 +510,9 @@ export default {
         } else {
            const rand = Math.random() * 100;
            if (rand < item.gachaRate) {
+               // 记录盲盒中奖到 gachaGotItemsMap，确保成就系统可追踪
+               if (!user.gachaGotItemsMap) user.gachaGotItemsMap = {};
+               user.gachaGotItemsMap[item.name] = (user.gachaGotItemsMap[item.name] || 0) + 1;
                // 旧版盲盒兼容：如果有 gachaTarget，解析并应用奖励
                if (item.gachaTarget) {
                    const target = item.gachaTarget;

@@ -653,8 +653,18 @@ export default {
         
         // Normalize rates and resolve 'attr' type before saving
         const totalWeight = this.getTotalWeight();
-        const normalizedRewards = this.newItem.rewards.map(r => {
-            const resolved = { ...r, rate: Math.round(r.rate / totalWeight * 10000) / 100 };
+        let sumSoFar = 0;
+        const normalizedRewards = this.newItem.rewards.map((r, idx) => {
+            let rate;
+            if (idx === this.newItem.rewards.length - 1) {
+                // 最后一项取剩余值，确保总和精确等于100%
+                rate = Math.round((100 - sumSoFar) * 100) / 100;
+                if (rate < 0) rate = 0;
+            } else {
+                rate = Math.round(r.rate / totalWeight * 10000) / 100;
+                sumSoFar += rate;
+            }
+            const resolved = { ...r, rate };
             if (resolved.type === 'attr') {
                 resolved.type = resolved.attrType || 'strength';
                 delete resolved.attrType;
