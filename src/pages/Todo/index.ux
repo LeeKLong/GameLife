@@ -229,7 +229,7 @@ export default {
     appDef.onDataReady(() => {
       this.isDataReady = true;
       this.refreshList();
-      this.startTimeUpdate();
+      this.startPageTick();
     });
   },
 
@@ -239,8 +239,8 @@ export default {
         this.isDataReady = true;
         this.refreshList();
         this.updateTime(); // Immediate update on show
-        this.resumeTaskTimers(); // 恢复正在运行的计时器
-        
+        this.startPageTick(); // 单一定时器：时钟 + 任务计时
+
         // Handle edit request from detail page
         if (this.editTaskId) {
             const taskId = this.editTaskId;
@@ -260,13 +260,15 @@ export default {
   },
   
   onDestroy() {
-      if (this.timerId) clearInterval(this.timerId);
-      this.clearAllTaskTimers();
+      if (this._tickInterval) clearInterval(this._tickInterval);
   },
 
   onHide() {
-      // 离开页面时仅清理 setInterval，保留 isTimerRunning 状态以便恢复
-      this.clearAllTaskTimers();
+      // 离开页面时清理统一 tick 定时器，保留 isTimerRunning 状态
+      if (this._tickInterval) {
+          clearInterval(this._tickInterval);
+          this._tickInterval = null;
+      }
       if (this.pageTasks) {
           let needsSave = false;
           this.pageTasks.forEach(t => {
@@ -282,52 +284,6 @@ export default {
       }
   },
 
-  clearAllTaskTimers() {
-      if (this.pageTasks) {
-          this.pageTasks.forEach(t => {
-              if (t._timerInterval) {
-                  clearInterval(t._timerInterval);
-                  t._timerInterval = null;
-              }
-          });
-      }
-  },
-
-  resumeTaskTimers() {
-      if (!this.pageTasks) return;
-      this.pageTasks.forEach((task, index) => {
-          if (task.taskType === 'timer' && task.isTimerRunning) {
-              if (task.timerTargetTime) {
-                  const remain = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
-                  task.remainingTime = remain;
-                  if (remain <= 0) {
-                      task.isTimerRunning = false;
-                      task.timerTargetTime = null;
-                      this.completeTask(index);
-                  } else {
-                      // 重新启动计时器
-                      if (!task._timerInterval) {
-                          task._timerInterval = setInterval(() => {
-                              const r = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
-                              task.remainingTime = r;
-                              if (r <= 0) {
-                                  task.isTimerRunning = false;
-                                  task.timerTargetTime = null;
-                                  clearInterval(task._timerInterval);
-                                  task._timerInterval = null;
-                                  this.completeTask(index);
-                              }
-                          }, 1000);
-                      }
-                  }
-              } else {
-                  // 异常情况：有状态但没时间戳，重置
-                  task.isTimerRunning = false;
-              }
-          }
-      });
-  },
-
   onBackPress() {
     if (this.isCreating) {
       this.closeCreator();
@@ -341,12 +297,32 @@ export default {
       router.push({ uri: 'pages/TomatoTimer' });
   },
 
-  startTimeUpdate() {
-      if (this.timerId) clearInterval(this.timerId);
+  startPageTick() {
+      if (this._tickInterval) clearInterval(this._tickInterval);
       this.updateTime();
-      this.timerId = setInterval(() => {
+      this._tickInterval = setInterval(() => {
           this.updateTime();
-      }, 1000); // Update every second to sync tomato timer
+          this.tickTaskTimers();
+      }, 1000);
+  },
+
+  tickTaskTimers() {
+      const now = Date.now();
+      let hasChange = false;
+      (this.pageTasks || []).forEach((task, index) => {
+          if (task.taskType === 'timer' && task.isTimerRunning && task.timerTargetTime) {
+              const remain = Math.max(0, Math.ceil((task.timerTargetTime - now) / 1000));
+              task.remainingTime = remain;
+              hasChange = true;
+              if (remain <= 0) {
+                  task.isTimerRunning = false;
+                  task.timerTargetTime = null;
+                  this.completeTask(index);
+              }
+          }
+      });
+      // 仅在时间变化时触发重渲染
+      if (hasChange) this._taskTick = now;
   },
 
   updateTime() {
@@ -790,37 +766,19 @@ export default {
   toggleTimer(index) {
     this.vibrate();
     const task = this.pageTasks[index];
-    
+
     if (task.isTimerRunning) {
-        // 暂停
+        // 暂停 — 统一 tick 循环会自动跳过
         task.isTimerRunning = false;
         task.timerTargetTime = null;
-        if (task._timerInterval) {
-            clearInterval(task._timerInterval);
-            task._timerInterval = null;
-        }
         prompt.showToast({ message: '计时暂停' });
         this.$app.$def.saveUserData();
     } else {
-        // 开始
+        // 开始 — 记录绝对时间戳，由统一 tick 循环驱动
         task.isTimerRunning = true;
-        // 引入绝对时间戳
         task.timerTargetTime = Date.now() + task.remainingTime * 1000;
         prompt.showToast({ message: '计时开始' });
         this.$app.$def.saveUserData();
-        
-        task._timerInterval = setInterval(() => {
-            const remain = Math.max(0, Math.ceil((task.timerTargetTime - Date.now()) / 1000));
-            task.remainingTime = remain;
-            
-            if (remain <= 0) {
-                task.isTimerRunning = false;
-                task.timerTargetTime = null;
-                clearInterval(task._timerInterval);
-                task._timerInterval = null;
-                this.completeTask(index);
-            }
-        }, 1000);
     }
     // 强制触发 UI 更新
     this.pageTasks = [...this.pageTasks];
@@ -838,12 +796,11 @@ export default {
     
     this[taskKey] = true;
     setTimeout(() => { delete this[taskKey]; }, 1000);
-    
-    // 清除计时器（如果是计时委托）
-    if (task._timerInterval) {
-        clearInterval(task._timerInterval);
-        task._timerInterval = null;
+
+    // 停止计时（统一 tick 循环检测到 isTimerRunning=false 会跳过）
+    if (task.isTimerRunning) {
         task.isTimerRunning = false;
+        task.timerTargetTime = null;
     }
 
     if (task.completed && !isFinalCount) {

@@ -4,7 +4,9 @@ import prompt from '@system.prompt';
 import vibrator from '@system.vibrator';
 
 // 常量定义
-const MAX_LOG_SIZE = 500;
+const MAX_LOG_SIZE = 100;
+const MAX_INVENTORY_SIZE = 200;
+const MAX_TODO_SIZE = 200;
 const BUFF_CHECK_INTERVAL = 1000; // 1秒
 const DEADLINE_CHECK_INTERVAL = 60000; // 60秒
 const MAX_ATTRIBUTE_HISTORY_DAYS = 30;
@@ -168,6 +170,7 @@ export default {
   },
   
   onDestroy() {
+    this.flushUserDataNow();
     if (this.globalData.buffTimer) {
       clearInterval(this.globalData.buffTimer);
     }
@@ -625,13 +628,50 @@ export default {
   },
 
   saveUserData() {
-    // 拆分存储：growthLog 单独存，避免主数据包过大
+    // 防抖：快速连续操作合并为一次写入
+    if (this._savePending) return; // 批量模式下由 endBatch 统一写入
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      this._flushUserData();
+    }, 500);
+  },
+
+  _flushUserData() {
     const user = this.globalData.userInfo;
+    // 裁剪无上限数组，防止数据包无限膨胀
+    if (user.inventory && user.inventory.length > MAX_INVENTORY_SIZE) {
+      user.inventory = user.inventory.slice(-MAX_INVENTORY_SIZE);
+    }
+    if (user.todoList && user.todoList.length > MAX_TODO_SIZE) {
+      user.todoList = user.todoList.slice(-MAX_TODO_SIZE);
+    }
     const log = user.growthLog;
     user.growthLog = [];
     storage.set({ key: 'lifeup_v3', value: JSON.stringify(user) });
     storage.set({ key: 'lifeup_log', value: JSON.stringify(log) });
     user.growthLog = log;
+  },
+
+  flushUserDataNow() {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    this._flushUserData();
+  },
+
+  beginBatch() {
+    this._savePending = true;
+  },
+
+  endBatch() {
+    this._savePending = false;
+    this.saveUserData();
+  },
+
+  cancelBatch() {
+    this._savePending = false;
   },
 
   // === 逻辑增强：经验获取与自动升级 ===

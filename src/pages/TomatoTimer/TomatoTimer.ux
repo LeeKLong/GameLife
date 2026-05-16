@@ -389,7 +389,7 @@ export default {
     this.syncWithGlobal();
     this.uiInterval = setInterval(() => {
       this.syncWithGlobal();
-    }, 500);
+    }, 1000);
   },
 
   stopUISync() {

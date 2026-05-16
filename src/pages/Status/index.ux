@@ -189,17 +189,10 @@ export default {
   onShow() {
     this.$app.$def.onDataReady(() => {
         this.refreshData();
-        this.startBuffTimer();
     });
   },
-  
-  onHide() {
-    this.stopBuffTimer();
-  },
-  
-  onDestroy() { 
-    this.stopBuffTimer();
-    // Hint GC
+
+  onDestroy() {
     if (global.runGC) global.runGC();
   },
   
@@ -362,20 +355,6 @@ export default {
   toSettings() {
     this.vibrate();
     router.push({ uri: 'pages/Settings' });
-  },
-
-  startBuffTimer() {
-    this.stopBuffTimer();
-    this.timer = setInterval(() => {
-      this.updateBuffDisplay();
-    }, 1000);
-  },
-
-  stopBuffTimer() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
   },
 
   updateBuffDisplay() {
