@@ -292,6 +292,15 @@ export default {
     return false;
   },
 
+  onHide() {
+    // 释放大数组引用，减少后台内存
+    this.displayShopItems = [];
+    this.displayInventory = [];
+    this.inventory = [];
+    this.shopItems = [];
+    this.recipes = [];
+  },
+
   refreshData() {
     const gUser = this.$app.$def.globalData.userInfo;
     if (!gUser) return;
@@ -587,7 +596,15 @@ export default {
     
     const unlocked = this.$app.$def.checkAchievements();
     if (unlocked && unlocked.length > 0) {
-        unlocked.forEach(a => { prompt.showToast({ message: `解锁成就: ${a.title}` }); });
+        const systemTypes = ['level', 'coins', 'task', 'signin', 'strength', 'intelligence', 'charm', 'debt_free'];
+        unlocked.forEach(a => {
+            if (systemTypes.includes(a.type)) {
+                let msg = `解锁成就: ${a.title}`;
+                if ((parseInt(a.rewardCoins) || 0) > 0) msg += ` 金币+${a.rewardCoins}`;
+                if ((parseInt(a.rewardExp) || 0) > 0) msg += ` 经验+${a.rewardExp}`;
+                prompt.showToast({ message: msg });
+            }
+        });
     }
     this.$app.$def.endBatch();
     this.refreshData();
@@ -842,25 +859,14 @@ export default {
 </script>
 
 <style>
+  @import '../../common/theme.css';
+
   .main-container { flex-direction: column; background-color: #000; height: 100%; }
   .content-wrapper { flex: 1; flex-direction: column; }
-  
-  .c-orange { color: #FF9F0A; }
-  .c-blue { color: #4E81EE; }
-  .c-green { color: #A3FA00; }
-  .c-purple { color: #BF5AF2; }
 
-  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
-  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
-  .bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
-  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
-  
-  .c-gray { color: #8E8E93; }
   .c-gray-title { color: #3A3A3C; }
-  .c-gold { color: #FFD60A; }
-  .gold-bg { background-color: rgba(255, 214, 10, 0.2); }
 
-  .title-row-box { 
+  .title-row-box {
     margin-top: 10px; margin-bottom: 20px; padding-left: 4px;
     flex-direction: row; align-items: center;
   }
@@ -937,7 +943,6 @@ export default {
   .popup-active-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
   .popup-active-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
   .check-icon { font-size: 26px; font-weight: bold; }
-  .c-white { color: #fff; }
 
   .shop-list, .inv-list { flex-direction: column; }
   .shop-item, .inv-item { 

@@ -349,10 +349,22 @@ export default {
           // System achievement
           if (!user.unlockedAchievements.includes(item.id)) {
               user.unlockedAchievements.push(item.id);
-              appDef.addGrowthLog('achievement', '解锁成就', item.title, false);
+              let logDesc = item.title;
+              if (enableRewards) {
+                  const rc = parseInt(item.rewardCoins) || 0;
+                  const re = parseInt(item.rewardExp) || 0;
+                  if (rc > 0) { appDef.addCoins(rc, false); logDesc += `，金币 +${rc}`; }
+                  if (re > 0) { appDef.gainExp(re, false); logDesc += `，经验 +${re}`; }
+              }
+              appDef.addGrowthLog('achievement', '解锁成就', logDesc, false);
               appDef.saveUserData();
               this.refreshData();
-              prompt.showToast({ message: `解锁成就: ${item.title}` });
+              let msg = `解锁成就: ${item.title}`;
+              if (enableRewards) {
+                  if ((parseInt(item.rewardCoins) || 0) > 0) msg += `\n金币 +${item.rewardCoins}`;
+                  if ((parseInt(item.rewardExp) || 0) > 0) msg += `\n经验 +${item.rewardExp}`;
+              }
+              prompt.showToast({ message: msg });
           }
       }
   },

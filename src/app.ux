@@ -7,9 +7,10 @@ import vibrator from '@system.vibrator';
 const MAX_LOG_SIZE = 100;
 const MAX_INVENTORY_SIZE = 200;
 const MAX_TODO_SIZE = 200;
+const MAX_MAP_KEYS = 200;
 const BUFF_CHECK_INTERVAL = 1000; // 1秒
 const DEADLINE_CHECK_INTERVAL = 60000; // 60秒
-const MAX_ATTRIBUTE_HISTORY_DAYS = 30;
+const MAX_ATTRIBUTE_HISTORY_DAYS = 7;
 
 export default {
     // 全局数据
@@ -127,40 +128,40 @@ export default {
     
     // 成就定义
     achievements: [
-      { id: 'signin_7', title: '坚持不懈 I', desc: '累计签到 7 天', type: 'signin', target: 7 },
-      { id: 'signin_30', title: '坚持不懈 II', desc: '累计签到 30 天', type: 'signin', target: 30 },
-      { id: 'signin_100', title: '坚持不懈 III', desc: '累计签到 100 天', type: 'signin', target: 100 },
-      
-      { id: 'level_2', title: '初出茅庐 I', desc: '达到等级 2', type: 'level', target: 2 },
-      { id: 'level_5', title: '初出茅庐 II', desc: '达到等级 5', type: 'level', target: 5 },
-      { id: 'level_10', title: '初出茅庐 III', desc: '达到等级 10', type: 'level', target: 10 },
-      { id: 'level_20', title: '初出茅庐 IV', desc: '达到等级 20', type: 'level', target: 20 },
-      { id: 'level_30', title: '初出茅庐 V', desc: '达到等级 30', type: 'level', target: 30 },
-      
-      { id: 'coins_100', title: '第一桶金 I', desc: '累计获得 100 金币', type: 'coins', target: 100 },
-      { id: 'coins_1000', title: '第一桶金 II', desc: '累计获得 1000 金币', type: 'coins', target: 1000 },
-      { id: 'coins_5000', title: '第一桶金 III', desc: '累计获得 5000 金币', type: 'coins', target: 5000 },
-      { id: 'coins_10000', title: '第一桶金 IV', desc: '累计获得 10000 金币', type: 'coins', target: 10000 },
-      
-      { id: 'task_1', title: '行动派 I', desc: '完成 1 个任务', type: 'task', target: 1 },
-      { id: 'task_10', title: '行动派 II', desc: '完成 10 个任务', type: 'task', target: 10 },
-      { id: 'task_50', title: '行动派 III', desc: '完成 50 个任务', type: 'task', target: 50 },
-      { id: 'task_100', title: '行动派 IV', desc: '完成 100 个任务', type: 'task', target: 100 },
-      { id: 'task_500', title: '行动派 V', desc: '完成 500 个任务', type: 'task', target: 500 },
-      
-      { id: 'attr_str_5', title: '大力士 I', desc: '力量达到 5 点', type: 'strength', target: 5 },
-      { id: 'attr_str_10', title: '大力士 II', desc: '力量达到 10 点', type: 'strength', target: 10 },
-      { id: 'attr_str_20', title: '大力士 III', desc: '力量达到 20 点', type: 'strength', target: 20 },
-      
-      { id: 'attr_int_5', title: '智多星 I', desc: '智力达到 5 点', type: 'intelligence', target: 5 },
-      { id: 'attr_int_10', title: '智多星 II', desc: '智力达到 10 点', type: 'intelligence', target: 10 },
-      { id: 'attr_int_20', title: '智多星 III', desc: '智力达到 20 点', type: 'intelligence', target: 20 },
-      
-      { id: 'attr_cha_5', title: '万人迷 I', desc: '魅力达到 5 点', type: 'charm', target: 5 },
-      { id: 'attr_cha_10', title: '万人迷 II', desc: '魅力达到 10 点', type: 'charm', target: 10 },
-      { id: 'attr_cha_20', title: '万人迷 III', desc: '魅力达到 20 点', type: 'charm', target: 20 },
-      
-      { id: 'debt_free', title: '无债一身轻', desc: '还清所有债务', type: 'debt_free', target: 1 }
+      { id: 'signin_7', title: '坚持不懈 I', desc: '累计签到 7 天', type: 'signin', target: 7, rewardCoins: 50, rewardExp: 20 },
+      { id: 'signin_30', title: '坚持不懈 II', desc: '累计签到 30 天', type: 'signin', target: 30, rewardCoins: 150, rewardExp: 50 },
+      { id: 'signin_100', title: '坚持不懈 III', desc: '累计签到 100 天', type: 'signin', target: 100, rewardCoins: 500, rewardExp: 100 },
+
+      { id: 'level_2', title: '初出茅庐 I', desc: '达到等级 2', type: 'level', target: 2, rewardCoins: 30, rewardExp: 20 },
+      { id: 'level_5', title: '初出茅庐 II', desc: '达到等级 5', type: 'level', target: 5, rewardCoins: 80, rewardExp: 50 },
+      { id: 'level_10', title: '初出茅庐 III', desc: '达到等级 10', type: 'level', target: 10, rewardCoins: 200, rewardExp: 80 },
+      { id: 'level_20', title: '初出茅庐 IV', desc: '达到等级 20', type: 'level', target: 20, rewardCoins: 400, rewardExp: 150 },
+      { id: 'level_30', title: '初出茅庐 V', desc: '达到等级 30', type: 'level', target: 30, rewardCoins: 800, rewardExp: 300 },
+
+      { id: 'coins_100', title: '第一桶金 I', desc: '累计获得 100 金币', type: 'coins', target: 100, rewardCoins: 20, rewardExp: 10 },
+      { id: 'coins_1000', title: '第一桶金 II', desc: '累计获得 1000 金币', type: 'coins', target: 1000, rewardCoins: 100, rewardExp: 30 },
+      { id: 'coins_5000', title: '第一桶金 III', desc: '累计获得 5000 金币', type: 'coins', target: 5000, rewardCoins: 300, rewardExp: 80 },
+      { id: 'coins_10000', title: '第一桶金 IV', desc: '累计获得 10000 金币', type: 'coins', target: 10000, rewardCoins: 500, rewardExp: 150 },
+
+      { id: 'task_1', title: '行动派 I', desc: '完成 1 个任务', type: 'task', target: 1, rewardCoins: 30, rewardExp: 20 },
+      { id: 'task_10', title: '行动派 II', desc: '完成 10 个任务', type: 'task', target: 10, rewardCoins: 100, rewardExp: 50 },
+      { id: 'task_50', title: '行动派 III', desc: '完成 50 个任务', type: 'task', target: 50, rewardCoins: 300, rewardExp: 100 },
+      { id: 'task_100', title: '行动派 IV', desc: '完成 100 个任务', type: 'task', target: 100, rewardCoins: 500, rewardExp: 200 },
+      { id: 'task_500', title: '行动派 V', desc: '完成 500 个任务', type: 'task', target: 500, rewardCoins: 1000, rewardExp: 500 },
+
+      { id: 'attr_str_5', title: '大力士 I', desc: '力量达到 5 点', type: 'strength', target: 5, rewardCoins: 80, rewardExp: 40 },
+      { id: 'attr_str_10', title: '大力士 II', desc: '力量达到 10 点', type: 'strength', target: 10, rewardCoins: 200, rewardExp: 80 },
+      { id: 'attr_str_20', title: '大力士 III', desc: '力量达到 20 点', type: 'strength', target: 20, rewardCoins: 500, rewardExp: 200 },
+
+      { id: 'attr_int_5', title: '智多星 I', desc: '智力达到 5 点', type: 'intelligence', target: 5, rewardCoins: 80, rewardExp: 40 },
+      { id: 'attr_int_10', title: '智多星 II', desc: '智力达到 10 点', type: 'intelligence', target: 10, rewardCoins: 200, rewardExp: 80 },
+      { id: 'attr_int_20', title: '智多星 III', desc: '智力达到 20 点', type: 'intelligence', target: 20, rewardCoins: 500, rewardExp: 200 },
+
+      { id: 'attr_cha_5', title: '万人迷 I', desc: '魅力达到 5 点', type: 'charm', target: 5, rewardCoins: 80, rewardExp: 40 },
+      { id: 'attr_cha_10', title: '万人迷 II', desc: '魅力达到 10 点', type: 'charm', target: 10, rewardCoins: 200, rewardExp: 80 },
+      { id: 'attr_cha_20', title: '万人迷 III', desc: '魅力达到 20 点', type: 'charm', target: 20, rewardCoins: 500, rewardExp: 200 },
+
+      { id: 'debt_free', title: '无债一身轻', desc: '还清所有债务', type: 'debt_free', target: 1, rewardCoins: 200, rewardExp: 100 }
     ]
   },
 
@@ -522,11 +523,10 @@ export default {
           if (!user.growthLog) user.growthLog = [];
           if (user.growthLog.length >= MAX_LOG_SIZE) user.growthLog.pop();
           user.growthLog.unshift({
-            id: Date.now(),
-            type: 'deadline_penalty',
-            title: '期限惩罚',
-            desc: desc,
-            timestamp: Date.now()
+            i: Date.now(),
+            t: 'deadline_penalty',
+            l: '期限惩罚',
+            d: desc
           });
         }
       }
@@ -559,7 +559,31 @@ export default {
           try {
             const localData = JSON.parse(data);
             that.globalData.userInfo = Object.assign({}, that.globalData.userInfo, localData);
-            // 单独加载 growthLog
+            // 并行加载冷配置和成长日志
+            let configLoaded = false;
+            let logLoaded = false;
+            function onBothLoaded() {
+              if (!configLoaded || !logLoaded) return;
+              // 两路数据都加载完成后初始化
+              that.initAttributeHistory();
+            }
+            // 加载冷配置
+            storage.get({
+              key: 'lifeup_config',
+              success: function(cfgData) {
+                if (cfgData) {
+                  try {
+                    const cfg = JSON.parse(cfgData);
+                    Object.keys(cfg).forEach(k => {
+                      if (cfg[k] !== undefined) that.globalData.userInfo[k] = cfg[k];
+                    });
+                  } catch(e) {}
+                }
+              },
+              fail: function() {},
+              complete: function() { configLoaded = true; onBothLoaded(); }
+            });
+            // 加载成长日志
             storage.get({
               key: 'lifeup_log',
               success: function(logData) {
@@ -568,21 +592,27 @@ export default {
                 }
               },
               fail: function() {},
-              complete: function() {
-                // growthLog 加载完成后再初始化属性历史，避免 saveUserData 覆盖日志
-                that.initAttributeHistory();
-              }
+              complete: function() { logLoaded = true; onBothLoaded(); }
             });
-            
+
             // 数据清洗：修复可能的 NaN/null 值
             const u = that.globalData.userInfo;
             if (typeof u.coins !== 'number' || isNaN(u.coins)) u.coins = 0;
             if (typeof u.currentExp !== 'number' || isNaN(u.currentExp)) u.currentExp = 0;
             if (typeof u.nextLevelExp !== 'number' || isNaN(u.nextLevelExp) || u.nextLevelExp <= 0) u.nextLevelExp = 100;
-            
+
             // 初始化首次使用日期
             if (!that.globalData.userInfo.firstUseDate) {
               that.globalData.userInfo.firstUseDate = Date.now();
+            }
+
+            // 膨胀瘦身格式的 inventory：{n, c} → 完整物品对象
+            if (u.inventory && u.inventory.length > 0 && u.inventory[0].n !== undefined) {
+              u.inventory = u.inventory.map(item => {
+                const shopDef = (u.shopItems || []).find(s => s.name === item.n);
+                const base = shopDef ? { ...shopDef } : { name: item.n, type: 'prop', desc: '' };
+                return { ...base, count: item.c || 0 };
+              });
             }
 
             // 数据迁移：将库存中的番茄移至独立存储
@@ -593,7 +623,7 @@ export default {
                 that.globalData.userInfo.tomatoCount = (that.globalData.userInfo.tomatoCount || 0) + count;
                 inv.splice(tIdx, 1);
             }
-            
+
             // 跨天重置逻辑 (使用 toDateString 避开每月1号的逻辑陷阱)
             const today = new Date().toDateString();
             if (that.globalData.userInfo.lastLoginDate !== today) {
@@ -602,11 +632,10 @@ export default {
               that.globalData.userInfo.lastLoginDate = today;
               that.saveUserData();
             }
-            
+
             // 初始化任务期限时间戳（兼容旧数据）
             that.initTaskDeadlineTimestamps();
-            
-            // 初始化属性历史记录（等 growthLog 加载完再做，避免覆盖日志）
+
           } catch (e) {
             console.error('Data parse error', e);
           }
@@ -646,11 +675,47 @@ export default {
     if (user.todoList && user.todoList.length > MAX_TODO_SIZE) {
       user.todoList = user.todoList.slice(-MAX_TODO_SIZE);
     }
+    // 裁剪无限增长的 Map，防止序列化体积膨胀
+    this._trimMap(user.purchasedItemsMap, MAX_MAP_KEYS);
+    this._trimMap(user.usedItemsMap, MAX_MAP_KEYS);
+    this._trimMap(user.gachaGotItemsMap, MAX_MAP_KEYS);
+    this._trimMap(user.focusedTaskDurationMap, MAX_MAP_KEYS);
+    // 剥离 todoList 运行时字段再序列化，避免脏数据写入 storage
+    const runtimeFields = ['isTimerRunning', 'timerTargetTime', 'remainingTime', '_timerInterval'];
+    const todoBackup = (user.todoList || []).map(t => {
+      const stripped = {};
+      Object.keys(t).forEach(k => {
+        if (!runtimeFields.includes(k)) stripped[k] = t[k];
+      });
+      return stripped;
+    });
+    const originalTodo = user.todoList;
+    user.todoList = todoBackup;
+    // 瘦身 inventory 用于存储：只保留 name + count
+    const origInventory = user.inventory;
+    user.inventory = (origInventory || []).map(item => ({ n: item.name, c: item.count || 0 }));
+    // 冷热分离：冷数据拆到独立 key，减少热数据序列化体积
+    const coldFields = ['settings', 'shopItems', 'recipes', 'customAttributes', 'baseAttrConfig', 'customAchievements'];
+    const coldBackup = {};
+    coldFields.forEach(k => { coldBackup[k] = user[k]; delete user[k]; });
     const log = user.growthLog;
     user.growthLog = [];
     storage.set({ key: 'lifeup_v3', value: JSON.stringify(user) });
+    storage.set({ key: 'lifeup_config', value: JSON.stringify(coldBackup) });
     storage.set({ key: 'lifeup_log', value: JSON.stringify(log) });
     user.growthLog = log;
+    // 恢复原对象
+    coldFields.forEach(k => { user[k] = coldBackup[k]; });
+    user.todoList = originalTodo;
+    user.inventory = origInventory;
+  },
+
+  _trimMap(map, maxKeys) {
+    if (!map) return;
+    const keys = Object.keys(map);
+    if (keys.length > maxKeys) {
+      keys.slice(0, keys.length - maxKeys).forEach(k => delete map[k]);
+    }
   },
 
   flushUserDataNow() {
@@ -765,26 +830,36 @@ export default {
     user.completedTaskCount = user.completedTaskCount || 0;
     user.hasBeenInDebt = user.hasBeenInDebt || false;
 
-    // 核心变更：系统成就现在不再自动解锁，仅返回达标列表供 UI 渲染“领取”按钮
-    const readyToClaimSystem = [];
+    // 系统成就达标后自动解锁，避免重复弹窗
+    const enableRewards = user.settings ? user.settings.enableAchievementRewards !== false : true;
+    const newSystemUnlocks = [];
     all.forEach(a => {
       if (unlocked.includes(a.id)) return;
-      
+
       let current = 0;
       let conditionMet = false;
       if (a.type === 'level') current = user.level;
       else if (a.type === 'coins') current = user.totalCoins;
       else if (a.type === 'task') current = user.completedTaskCount;
-      else if (a.type === 'signin') current = user.totalSignInDays || 0; 
+      else if (a.type === 'signin') current = user.totalSignInDays || 0;
       else if (a.type === 'strength') current = user.attributes.strength;
       else if (a.type === 'intelligence') current = user.attributes.intelligence;
       else if (a.type === 'charm') current = user.attributes.charm;
       else if (a.type === 'debt_free') {
         conditionMet = user.hasBeenInDebt && user.coins >= 0;
       }
-      
+
       if (conditionMet || (current >= a.target && a.type !== 'debt_free')) {
-        readyToClaimSystem.push(a);
+        unlocked.push(a.id);
+        let logDesc = a.title;
+        if (enableRewards) {
+          const rc = parseInt(a.rewardCoins) || 0;
+          const re = parseInt(a.rewardExp) || 0;
+          if (rc > 0) { this.addCoins(rc, false); logDesc += `，金币 +${rc}`; }
+          if (re > 0) { this.gainExp(re, false); logDesc += `，经验 +${re}`; }
+        }
+        this.addGrowthLog('achievement', '解锁成就', logDesc, false);
+        newSystemUnlocks.push(a);
       }
     });
 
@@ -875,12 +950,12 @@ export default {
       }
     });
     
-    // 如果有新达标的成就，可以弹个弱提示或振动
-    if (readyToClaimSystem.length > 0 || readyToClaimCustom.length > 0) {
-        // 这里暂时不自动弹窗，交由 UI 逻辑显示领取状态
+    // 如果有新自动解锁的系统成就或可领取的自定义成就，保存数据
+    if (newSystemUnlocks.length > 0 || readyToClaimCustom.length > 0) {
+        if (newSystemUnlocks.length > 0) this.saveUserData();
     }
-    
-    return readyToClaimSystem.concat(readyToClaimCustom);
+
+    return newSystemUnlocks.concat(readyToClaimCustom);
   },
 
   // 新增：启动一个 Buff/倒计时
@@ -913,18 +988,17 @@ export default {
   addGrowthLog(type, title, desc = '', save = true) {
     const user = this.globalData.userInfo;
     if (!user.growthLog) user.growthLog = [];
-    
+
     // 限制日志数量
     if (user.growthLog.length >= MAX_LOG_SIZE) {
         user.growthLog.pop();
     }
-    
+
     user.growthLog.unshift({
-        id: Date.now(),
-        type: type,
-        title: title,
-        desc: desc,
-        timestamp: Date.now()
+        i: Date.now(),
+        t: type,
+        l: title,
+        d: desc
     });
     if (save) this.saveUserData();
   },

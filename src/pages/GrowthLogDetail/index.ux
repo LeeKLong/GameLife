@@ -68,13 +68,21 @@ export default {
     const user = this.$app.$def.globalData.userInfo;
     if (this.logTimestamp) {
       const logs = user.growthLog || [];
-      const found = logs.find(l => String(l.timestamp) === String(this.logTimestamp));
+      const found = logs.find(l => {
+        const ts = l.ts || l.timestamp || l.i || l.id;
+        return String(ts) === String(this.logTimestamp);
+      });
       if (found) {
-        this.log = found;
-        this.icon = this.getIcon(found.type);
-        this.iconBgClass = this.getIconBgClass(found.type);
-        this.typeName = this.getTypeName(found.type);
-        this.fullTime = this.formatFullTime(found.timestamp);
+        // 兼容新旧格式
+        const ts = found.ts || found.timestamp || found.i || found.id || 0;
+        const type = found.t || found.type || '';
+        const title = found.l || found.title || '';
+        const desc = found.d || found.desc || '';
+        this.log = { timestamp: ts, type: type, title: title, desc: desc };
+        this.icon = this.getIcon(type);
+        this.iconBgClass = this.getIconBgClass(type);
+        this.typeName = this.getTypeName(type);
+        this.fullTime = this.formatFullTime(ts);
       }
     }
   },

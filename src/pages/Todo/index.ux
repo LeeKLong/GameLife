@@ -79,7 +79,15 @@
               </div>
             </div>
           </div>
-          
+
+          <!-- Fold Completed Header -->
+          <div class="fold-header" if="{{foldCompleted && foldedCompletedCount > 0}}" onclick="toggleCompletedFold">
+            <div class="fold-divider"></div>
+            <div class="fold-row">
+              <text class="fold-txt {{'c-'+themeColor}}">{{completedExpanded ? '▲' : '▼'}} 已完成 ({{foldedCompletedCount}})</text>
+            </div>
+          </div>
+
           <!-- Create Task Card -->
           <div class="create-card" onclick="openCreator">
              <div class="create-icon-circle {{'bg-soft-'+themeColor}}">
@@ -184,6 +192,9 @@ export default {
     themeColor: 'blue',
     currentFilter: 'all', // all, 紧急, 重要, 普通, 较低
     catPopupVisible: false,
+    foldCompleted: true,
+    completedExpanded: false,
+    foldedCompletedCount: 0,
     
     // Date Card Data
     showDateCard: false,
@@ -282,6 +293,8 @@ export default {
               this.$app.$def.saveUserData();
           }
       }
+      // 释放大数组引用，减少后台内存
+      this.pageTasks = [];
   },
 
   onBackPress() {
@@ -499,6 +512,11 @@ export default {
         displayList = globalList.filter(t => t.importance === this.currentFilter);
     }
 
+    // 读取折叠设置，未设置时默认开启
+    this.foldCompleted = userInfo.settings && userInfo.settings.foldCompletedTasks !== undefined
+      ? userInfo.settings.foldCompletedTasks
+      : true;
+
     // 分组排序逻辑：未完成(正常) -> 已逾期 -> 已完成
     const normalTasks = [];
     const overdueTasks = [];
@@ -559,10 +577,16 @@ export default {
         return timeB - timeA;
     });
 
-    this.pageTasks = [...normalTasks, ...overdueTasks, ...completedTasks];
-    
-    this.todayTotalCount = this.pageTasks.length;
-    this.todayCompletedCount = this.pageTasks.filter(t => t.completed).length;
+    // 根据折叠设置决定是否包含已完成任务
+    this.foldedCompletedCount = completedTasks.length;
+    if (this.foldCompleted && !this.completedExpanded && completedTasks.length > 0) {
+      this.pageTasks = [...normalTasks, ...overdueTasks];
+    } else {
+      this.pageTasks = [...normalTasks, ...overdueTasks, ...completedTasks];
+    }
+
+    this.todayTotalCount = normalTasks.length + overdueTasks.length + completedTasks.length;
+    this.todayCompletedCount = completedTasks.length;
     this.todayProgressPercent = this.todayTotalCount > 0 ? (this.todayCompletedCount / this.todayTotalCount * 100) : 0;
   },
   
@@ -913,8 +937,14 @@ export default {
         this.notificationQueue.push({ title: '等级提升!', content: `Lv.${newLevel}` });
     }
     if (unlocked && unlocked.length > 0) {
+        const systemTypes = ['level', 'coins', 'task', 'signin', 'strength', 'intelligence', 'charm', 'debt_free'];
         unlocked.forEach(a => {
-            this.notificationQueue.push({ title: '解锁成就!', content: `${a.title}` });
+            if (systemTypes.includes(a.type)) {
+                let content = a.title;
+                if ((parseInt(a.rewardCoins) || 0) > 0) content += `\n金币 +${a.rewardCoins}`;
+                if ((parseInt(a.rewardExp) || 0) > 0) content += ` 经验 +${a.rewardExp}`;
+                this.notificationQueue.push({ title: '解锁成就!', content: content });
+            }
         });
     }
     this.processQueue();
@@ -955,6 +985,12 @@ export default {
   closeCatPopup() {
     this.vibrate();
     this.catPopupVisible = false;
+  },
+
+  toggleCompletedFold() {
+    this.vibrate();
+    this.completedExpanded = !this.completedExpanded;
+    this.refreshList();
   },
 
   stopClick(evt) {
@@ -1010,7 +1046,7 @@ export default {
     this.vibrate();
     const newTask = evt.detail.task;
     const appDef = this.$app.$def;
-    const list = JSON.parse(JSON.stringify(appDef.globalData.userInfo.todoList || []));
+    const list = [...(appDef.globalData.userInfo.todoList || [])];
     const attrType = newTask.attrType || 'strength';
     const attrVal = parseInt(newTask.attrVal) || 0;
 
@@ -1062,25 +1098,11 @@ export default {
 </script>
 
 <style>
+  @import '../../common/theme.css';
+
   .main-container { flex-direction: column; background-color: #000; height: 100%; }
   .content-area { flex: 1; flex-direction: column; }
 
-  /* Theme Colors */
-  .c-orange { color: #FF9F0A; }
-  .c-blue { color: #4E81EE; }
-  .c-green { color: #A3FA00; }
-  .c-purple { color: #BF5AF2; }
-
-  .bg-orange { background-color: #FF9F0A; }
-  .bg-blue { background-color: #4E81EE; }
-  .bg-green { background-color: #A3FA00; }
-  .bg-purple { background-color: #BF5AF2; }
-  
-  .bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
-  .bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
-  .bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
-  .bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
-  
   .ring-done-orange { border-color: #FF9F0A; background-color: rgba(255, 159, 10, 0.2); }
   .ring-done-blue { border-color: #4E81EE; background-color: rgba(78, 129, 238, 0.2); }
   .ring-done-green { border-color: #A3FA00; background-color: rgba(163, 250, 0, 0.2); }
@@ -1094,7 +1116,7 @@ export default {
 
   .scroll-list { flex: 1; flex-direction: column; padding-top: 14px; }
   .task-list-box { flex-direction: column; padding: 0 14px 12px 14px; }
-  
+
   /* Date Card */
   .date-card {
     background-color: #1C1C1E;
@@ -1210,6 +1232,16 @@ export default {
   .empty-title { font-size: 28px; color: #8E8E93; margin-bottom: 8px; }
   .empty-sub { font-size: 24px; color: #48484A; }
 
+  /* Fold Header */
+  .fold-header { flex-direction: column; align-items: center; margin-bottom: 12px; }
+  .fold-divider { width: 80%; height: 1px; background-color: #2C2C2E; margin-bottom: 12px; }
+  .fold-row {
+    flex-direction: row; align-items: center; justify-content: center;
+    padding: 8px 20px; border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+  .fold-txt { font-size: 20px; font-weight: bold; }
+
   /* Create Card */
   .create-card {
     flex-direction: row;
@@ -1295,6 +1327,5 @@ export default {
   .popup-active-green { background-color: rgba(163, 250, 0, 0.15); border-color: rgba(163, 250, 0, 0.3); }
   .popup-active-purple { background-color: rgba(191, 90, 242, 0.15); border-color: rgba(191, 90, 242, 0.3); }
   .check-icon { font-size: 26px; font-weight: bold; }
-  .c-white { color: #fff; }
 
 </style>

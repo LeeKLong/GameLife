@@ -1,0 +1,30 @@
+/* 公共主题色类 — 所有页面通过 @import 引入，避免重复定义 */
+
+/* 主题文字颜色 */
+.c-orange { color: #FF9F0A; }
+.c-blue { color: #4E81EE; }
+.c-green { color: #A3FA00; }
+.c-purple { color: #BF5AF2; }
+
+/* 主题背景色 */
+.bg-orange { background-color: #FF9F0A; }
+.bg-blue { background-color: #4E81EE; }
+.bg-green { background-color: #A3FA00; }
+.bg-purple { background-color: #BF5AF2; }
+
+/* 主题柔和背景色 */
+.bg-soft-orange { background-color: rgba(255, 159, 10, 0.15); }
+.bg-soft-blue { background-color: rgba(78, 129, 238, 0.15); }
+.bg-soft-green { background-color: rgba(163, 250, 0, 0.15); }
+.bg-soft-purple { background-color: rgba(191, 90, 242, 0.15); }
+
+/* 通用颜色 */
+.c-white { color: #FFFFFF; }
+.c-gray { color: #8E8E93; }
+.c-gold { color: #FFD60A; }
+.c-red { color: #FF453A; }
+.gold-bg { background-color: rgba(255, 214, 10, 0.2); }
+
+/* 通用暗色背景 */
+.bg-dark { background-color: #1C1C1E; }
+.bg-red { background-color: #FF453A; }

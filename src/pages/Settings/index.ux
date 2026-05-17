@@ -97,6 +97,16 @@
           </div>
         </div>
 
+        <div class="setting-item" onclick="toggleFoldCompleted">
+          <div class="item-col">
+            <text class="item-title">折叠已完成委托</text>
+            <text class="item-sub">委托页收缩已完成的委托为一栏</text>
+          </div>
+          <div class="switch-pill {{settings.foldCompletedTasks ? 'switch-on-'+settings.themeColor : 'switch-off'}}">
+             <text class="switch-txt {{settings.foldCompletedTasks ? 'c-'+settings.themeColor : ''}}">{{settings.foldCompletedTasks ? 'ON' : 'OFF'}}</text>
+          </div>
+        </div>
+
         <div class="setting-item" onclick="toggleAchievementRewards">
           <div class="item-col">
             <text class="item-title">启用成就奖励</text>
@@ -186,12 +196,13 @@ export default {
     const globalData = this.$app.$def.globalData;
     if (globalData && globalData.userInfo) {
        // Defaults
-       const defaults = { 
-           enableHaptics: true, 
-           deletePenalty: true, 
+       const defaults = {
+           enableHaptics: true,
+           deletePenalty: true,
            showDateCard: true,
            themeColor: 'blue',
-           rememberLastConfig: false
+           rememberLastConfig: false,
+           foldCompletedTasks: true
        };
        const userSettings = globalData.userInfo.settings || {};
        
@@ -242,6 +253,12 @@ export default {
   toggleRememberConfig() {
     this.vibrate();
     this.settings.rememberLastConfig = !this.settings.rememberLastConfig;
+    this.saveSettings();
+  },
+
+  toggleFoldCompleted() {
+    this.vibrate();
+    this.settings.foldCompletedTasks = !this.settings.foldCompletedTasks;
     this.saveSettings();
   },
 

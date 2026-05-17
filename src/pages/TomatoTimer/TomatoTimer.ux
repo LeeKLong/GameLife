@@ -818,15 +818,7 @@ export default {
   .spacer { height: 100px; }
 
   /* Theme colors */
-  .bg-orange { background-color: #FF9F0A; }
-  .bg-blue { background-color: #4E81EE; }
-  .bg-green { background-color: #A3FA00; }
-  .bg-purple { background-color: #BF5AF2; }
-
-  .c-orange { color: #FF9F0A; }
-  .c-blue { color: #4E81EE; }
-  .c-green { color: #A3FA00; }
-  .c-purple { color: #BF5AF2; }
+  @import '../../common/theme.css';
 
   /* Balance Card Styles (Ref: Shop/index.ux) */
   .balance-card { 
